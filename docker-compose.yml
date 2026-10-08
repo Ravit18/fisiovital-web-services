@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: fisiovital-postgres
+    environment:
+      POSTGRES_DB: fisiovital
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - fisiovital-data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    container_name: fisiovital-api
+    profiles: ["full"]
+    depends_on:
+      - postgres
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/fisiovital
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    ports:
+      - "8080:8080"
+
+volumes:
+  fisiovital-data:

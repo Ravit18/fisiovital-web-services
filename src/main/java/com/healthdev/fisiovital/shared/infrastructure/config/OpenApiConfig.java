@@ -1,0 +1,18 @@
+package com.healthdev.fisiovital.shared.infrastructure.config;
+
+import io.swagger.v3.oas.annotations.OpenAPIDefinition;
+import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
+import io.swagger.v3.oas.annotations.info.Contact;
+import io.swagger.v3.oas.annotations.info.Info;
+import io.swagger.v3.oas.annotations.security.SecurityScheme;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@OpenAPIDefinition(info = @Info(
+        title = "FisioVital API",
+        version = "v1.0.0",
+        description = "API RESTful de FisioVital: cuentas, disponibilidad, planes de tratamiento, sesiones y registro clinico.",
+        contact = @Contact(name = "Health-Dev Solutions")))
+@SecurityScheme(name = "bearerAuth", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
+public class OpenApiConfig {
+}
