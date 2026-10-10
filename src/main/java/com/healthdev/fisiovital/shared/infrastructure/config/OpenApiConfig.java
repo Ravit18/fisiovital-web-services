@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Configuration;
 @OpenAPIDefinition(info = @Info(
         title = "FisioVital API",
         version = "v1.0.0",
-        description = "API RESTful de FisioVital: cuentas, disponibilidad, planes de tratamiento, sesiones y registro clinico.",
+        description = "API RESTful de FisioVital: cuentas, disponibilidad, planes de tratamiento, sesiones e historial de citas.",
         contact = @Contact(name = "Health-Dev Solutions")))
 @SecurityScheme(name = "bearerAuth", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
 public class OpenApiConfig {
