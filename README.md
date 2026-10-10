@@ -37,8 +37,8 @@ Las tablas se crean solas al iniciar la aplicación (`spring.jpa.hibernate.ddl-a
 
 1. *Import* → selecciona `postman/FisioVital.postman_collection.json`.
 2. Abre la colección → *Run* (Collection Runner) → *Run FisioVital API - Sprint 1*.
-3. Las peticiones se ejecutan en orden y guardan solas los tokens y los IDs (paciente, fisioterapeuta, bloques, plan, sesión, nota).
-4. Para repetir la prueba con usuarios nuevos, borra el valor de la variable de colección `runId`.
+3. Las peticiones se ejecutan en orden y guardan solas los tokens y los IDs (paciente, fisioterapeuta, bloques, plan, sesión).
+4. Cada corrida genera usuarios nuevos, así que puedes repetirla las veces que quieras.
 
 Para cambiar el idioma de las respuestas, cambia la variable `lang` a `en-US` (por defecto `es-419`).
 
@@ -60,10 +60,9 @@ Para cambiar el idioma de las respuestas, cambia la variable `lang` a `en-US` (p
 | US11 | PATCH | `/api/v1/sessions/{sessionId}/reschedule` | Paciente |
 | US12 | PATCH | `/api/v1/sessions/{sessionId}/cancel` | Paciente |
 | US13 | GET | `/api/v1/notifications` | Autenticado |
-| US14 | POST | `/api/v1/sessions/{sessionId}/clinical-note` | Fisioterapeuta |
-| US14 | PUT | `/api/v1/clinical-notes/{noteId}` | Fisioterapeuta |
-| US15 | GET | `/api/v1/patients/{patientId}/clinical-history` | Fisioterapeuta |
-| US16 | GET | `/api/v1/treatment-plans/{planId}/progress` | Paciente |
+| US14 | GET | `/api/v1/patients/me/appointments` | Paciente |
+| US15 | GET | `/api/v1/physiotherapists/me/appointments` | Fisioterapeuta |
+| US16 | GET | `/api/v1/patients/appointments?fullName=` | Fisioterapeuta |
 
 Especialidades válidas: `DEPORTIVA`, `COLUMNA_POSTURA`, `GERIATRICA`, `PEDIATRICA`, `POSTQUIRURGICA`, `NEUROLOGICA`.
 
@@ -74,8 +73,8 @@ com.healthdev.fisiovital
 ├── iam            Usuarios, registro, inicio de sesión, JWT y Spring Security (US01-US03)
 ├── profiles       Pacientes y fisioterapeutas, búsqueda de especialistas (US04-US05)
 ├── scheduling     Bloques de disponibilidad (US06-US07)
-├── treatment      Planes, sesiones, agenda y progreso (US08-US12, US16)
-├── clinical       Notas clínicas e historial (US14-US15)
+├── treatment      Planes, sesiones y agenda (US08-US12)
+├── appointments   Historial de citas del paciente y del fisioterapeuta (US14-US16)
 ├── notifications  Notificaciones y recordatorios programados (US13)
 └── shared         Excepciones, manejo global de errores, i18n y Swagger
 ```
