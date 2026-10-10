@@ -19,7 +19,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @PreAuthorize("hasRole('PATIENT')")
-@Tag(name = "Treatment Plans", description = "Planes de tratamiento, reservas y progreso (US09, US10, US16)")
+@Tag(name = "Treatment Plans", description = "Planes de tratamiento y reservas (US09, US10)")
 public class TreatmentPlanController {
 
     private final TreatmentPlanService treatmentPlanService;
@@ -41,11 +41,5 @@ public class TreatmentPlanController {
     public ResponseEntity<SessionResource> bookSession(@PathVariable Long planId,
                                                        @Valid @RequestBody BookSessionResource request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(treatmentPlanService.bookSession(planId, request.slotId()));
-    }
-
-    @GetMapping("/{planId}/progress")
-    @Operation(summary = "US16 - Ver el progreso de mi plan")
-    public ResponseEntity<ProgressResource> progress(@PathVariable Long planId) {
-        return ResponseEntity.ok(treatmentPlanService.progress(planId));
     }
 }
