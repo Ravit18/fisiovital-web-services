@@ -87,12 +87,9 @@ public class Session {
         this.slot.release();
     }
 
-    /** US14 - Al registrar la nota clinica la sesion queda como realizada. */
-    public void complete() {
-        if (!isReserved()) {
-            throw BusinessException.unprocessable("session.not.reserved");
-        }
-        this.status = SessionStatus.COMPLETED;
+    /** US14 a US16 - En el historial, una sesion reservada cuyo horario ya paso figura como realizada. */
+    public SessionStatus statusAt(LocalDateTime now) {
+        return isReserved() && slot.getEndTime().isBefore(now) ? SessionStatus.COMPLETED : status;
     }
 
     public void markReminderSent() {

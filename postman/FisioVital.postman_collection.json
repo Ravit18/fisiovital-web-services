@@ -61,7 +61,7 @@
                   "d.setDate(d.getDate() + 7);",
                   "pm.collectionVariables.set(\"slotDate\", d.toISOString().slice(0, 10));",
                   "[\"patientToken\", \"physioToken\", \"patientId\", \"physioId\", \"slotId1\", \"slotId2\", \"slotId3\",",
-                  "  \"planId\", \"sessionId\", \"sessionToCancelId\", \"noteId\"].forEach(k => pm.collectionVariables.set(k, \"\"));"
+                  "  \"planId\", \"sessionId\", \"sessionToCancelId\", \"newPatientToken\", \"newPhysioToken\"].forEach(k => pm.collectionVariables.set(k, \"\"));"
                 ]
               }
             },
@@ -939,7 +939,7 @@
       ]
     },
     {
-      "name": "04 Plan y sesiones (US09-US12, US16)",
+      "name": "04 Plan y sesiones (US08-US12)",
       "item": [
         {
           "name": "US09 Registrar plan (exitoso)",
@@ -1534,10 +1534,10 @@
       ]
     },
     {
-      "name": "05 Registro clínico (US14-US16)",
+      "name": "05 Historial de citas (US14-US16)",
       "item": [
         {
-          "name": "US14 Registrar evolución (error: observaciones vacías)",
+          "name": "Preparación: registrar paciente sin citas",
           "request": {
             "method": "POST",
             "header": [
@@ -1548,79 +1548,23 @@
               {
                 "key": "Accept-Language",
                 "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{physioToken}}"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/sessions/{{sessionId}}/clinical-note",
+              "raw": "{{baseUrl}}/auth/sign-up/patient",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "sessions",
-                "{{sessionId}}",
-                "clinical-note"
+                "auth",
+                "sign-up",
+                "patient"
               ]
             },
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"observations\": \"\",\n  \"exercises\": \"Sentadilla isométrica 3x10\",\n  \"painLevel\": 4\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "US14 Registrar evolución (exitoso)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{physioToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/sessions/{{sessionId}}/clinical-note",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "sessions",
-                "{{sessionId}}",
-                "clinical-note"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"observations\": \"Dolor 4/10, flexión de rodilla 110°\",\n  \"exercises\": \"Sentadilla isométrica 3x10\",\n  \"painLevel\": 4\n}",
+              "raw": "{\n  \"fullName\": \"Paciente Nuevo {{runId}}\",\n  \"email\": \"nuevo.{{patientEmail}}\",\n  \"password\": \"Fisio2026*\",\n  \"phone\": \"987654322\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1635,16 +1579,16 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set(\"noteId\", pm.response.json().id);"
+                  "pm.collectionVariables.set(\"newPatientToken\", pm.response.json().token);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US14 Editar nota (alternativo: dentro de 24 h)",
+          "name": "Preparación: registrar fisioterapeuta sin citas",
           "request": {
-            "method": "PUT",
+            "method": "POST",
             "header": [
               {
                 "key": "Content-Type",
@@ -1653,26 +1597,23 @@
               {
                 "key": "Accept-Language",
                 "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{physioToken}}"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/clinical-notes/{{noteId}}",
+              "raw": "{{baseUrl}}/auth/sign-up/physiotherapist",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "clinical-notes",
-                "{{noteId}}"
+                "auth",
+                "sign-up",
+                "physiotherapist"
               ]
             },
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"observations\": \"Dolor 3/10, flexión de rodilla 115°\",\n  \"exercises\": \"Sentadilla isométrica 3x12\",\n  \"painLevel\": 3\n}",
+              "raw": "{\n  \"fullName\": \"Fisioterapeuta Nuevo {{runId}}\",\n  \"email\": \"nuevo.{{physioEmail}}\",\n  \"password\": \"Fisio2026*\",\n  \"licenseNumber\": \"N{{runId}}\",\n  \"specialty\": \"GERIATRICA\",\n  \"yearsOfExperience\": 2\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1686,57 +1627,15 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"newPhysioToken\", pm.response.json().token);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US15 Ver historial clínico",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{physioToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/patients/{{patientId}}/clinical-history",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "patients",
-                "{{patientId}}",
-                "clinical-history"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "US15 Historial (error: el paciente no tiene acceso)",
+          "name": "US14 Historial de citas del paciente (exitoso)",
           "request": {
             "method": "GET",
             "header": [
@@ -1754,14 +1653,63 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/patients/{{patientId}}/clinical-history",
+              "raw": "{{baseUrl}}/patients/me/appointments",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "patients",
-                "{{patientId}}",
-                "clinical-history"
+                "me",
+                "appointments"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"Tiene citas\", () => pm.expect(r.appointments.length).to.be.above(0));",
+                  "pm.test(\"Ordenadas de la más nueva a la más antigua\", () => {",
+                  "  const times = r.appointments.map(a => a.startTime);",
+                  "  pm.expect(times).to.eql([...times].sort().reverse());",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US14 Historial de citas del paciente (error: el fisioterapeuta no tiene acceso)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patients/me/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "me",
+                "appointments"
               ]
             },
             "description": ""
@@ -1779,7 +1727,104 @@
           ]
         },
         {
-          "name": "US16 Ver progreso del plan",
+          "name": "US14 Historial de citas del paciente (alternativo: sin citas)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{newPatientToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patients/me/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "me",
+                "appointments"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"Sin citas y con mensaje\", () => {",
+                  "  pm.expect(r.appointments.length).to.eql(0);",
+                  "  pm.expect(r.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US15 Historial de citas del fisioterapeuta (exitoso)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/physiotherapists/me/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "physiotherapists",
+                "me",
+                "appointments"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"Tiene citas\", () => pm.expect(r.appointments.length).to.be.above(0));",
+                  "pm.test(\"Ordenadas de la más nueva a la más antigua\", () => {",
+                  "  const times = r.appointments.map(a => a.startTime);",
+                  "  pm.expect(times).to.eql([...times].sort().reverse());",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US15 Historial de citas del fisioterapeuta (error: el paciente no tiene acceso)",
           "request": {
             "method": "GET",
             "header": [
@@ -1797,14 +1842,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/treatment-plans/{{planId}}/progress",
+              "raw": "{{baseUrl}}/physiotherapists/me/appointments",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "treatment-plans",
-                "{{planId}}",
-                "progress"
+                "physiotherapists",
+                "me",
+                "appointments"
               ]
             },
             "description": ""
@@ -1815,7 +1860,210 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US15 Historial de citas del fisioterapeuta (alternativo: sin citas)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{newPhysioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/physiotherapists/me/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "physiotherapists",
+                "me",
+                "appointments"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"Sin citas y con mensaje\", () => {",
+                  "  pm.expect(r.appointments.length).to.eql(0);",
+                  "  pm.expect(r.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US16 Historial de citas de un paciente (exitoso)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patients/appointments?fullName=Carlos Mendoza",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "fullName",
+                  "value": "Carlos Mendoza"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"Tiene citas\", () => pm.expect(r.appointments.length).to.be.above(0));",
+                  "pm.test(\"Ordenadas de la más nueva a la más antigua\", () => {",
+                  "  const times = r.appointments.map(a => a.startTime);",
+                  "  pm.expect(times).to.eql([...times].sort().reverse());",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US16 Historial de citas de un paciente (error: el paciente no existe)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patients/appointments?fullName=Paciente Inexistente {{runId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "fullName",
+                  "value": "Paciente Inexistente {{runId}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US16 Historial de citas de un paciente (alternativo: sin citas)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patients/appointments?fullName=Paciente Nuevo {{runId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "fullName",
+                  "value": "Paciente Nuevo {{runId}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"Sin citas y con mensaje\", () => {",
+                  "  pm.expect(r.appointments.length).to.eql(0);",
+                  "  pm.expect(r.message).to.be.a(\"string\");",
+                  "});"
                 ]
               }
             }
@@ -2002,7 +2250,11 @@
       "value": ""
     },
     {
-      "key": "noteId",
+      "key": "newPatientToken",
+      "value": ""
+    },
+    {
+      "key": "newPhysioToken",
       "value": ""
     }
   ]

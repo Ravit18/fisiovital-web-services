@@ -15,6 +15,4 @@ public interface TreatmentPlanRepository extends JpaRepository<TreatmentPlan, Lo
             Long patientId, Long physiotherapistId, PlanStatus status);
 
     List<TreatmentPlan> findByPatientIdOrderByCreatedAtDesc(Long patientId);
-
-    List<TreatmentPlan> findByPatientIdAndPhysiotherapistIdOrderByCreatedAtDesc(Long patientId, Long physiotherapistId);
 }

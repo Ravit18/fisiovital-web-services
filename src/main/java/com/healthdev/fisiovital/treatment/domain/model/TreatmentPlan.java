@@ -74,10 +74,6 @@ public class TreatmentPlan {
         return activeSessions < totalSessions;
     }
 
-    public int progressPercent(long completedSessions) {
-        return (int) Math.min(100, completedSessions * 100 / totalSessions);
-    }
-
     public void finish() {
         this.status = PlanStatus.FINISHED;
     }

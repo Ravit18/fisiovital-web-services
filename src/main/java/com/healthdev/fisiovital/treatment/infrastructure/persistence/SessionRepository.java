@@ -17,12 +17,10 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
 
     long countByPlanIdAndStatusIn(Long planId, Collection<SessionStatus> statuses);
 
-    long countByPlanIdAndStatus(Long planId, SessionStatus status);
+    long countByPlanIdAndStatusInAndSlotEndTimeBefore(Long planId, Collection<SessionStatus> statuses,
+                                                      LocalDateTime before);
 
     Optional<Session> findFirstBySlotIdAndStatusInOrderByIdDesc(Long slotId, Collection<SessionStatus> statuses);
-
-    List<Session> findByPlanIdAndStatusAndSlotStartTimeAfterOrderBySlotStartTimeAsc(
-            Long planId, SessionStatus status, LocalDateTime after);
 
     @Query("select s from Session s where s.status = com.healthdev.fisiovital.treatment.domain.model.SessionStatus.RESERVED " +
             "and s.reminderSent = false and s.slot.startTime between :from and :to")

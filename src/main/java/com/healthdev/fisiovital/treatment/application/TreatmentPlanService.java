@@ -1,6 +1,5 @@
 package com.healthdev.fisiovital.treatment.application;
 
-import com.healthdev.fisiovital.clinical.infrastructure.persistence.ClinicalNoteRepository;
 import com.healthdev.fisiovital.profiles.application.ProfileLookupService;
 import com.healthdev.fisiovital.profiles.domain.model.Patient;
 import com.healthdev.fisiovital.profiles.domain.model.Physiotherapist;
@@ -11,7 +10,6 @@ import com.healthdev.fisiovital.treatment.domain.model.*;
 import com.healthdev.fisiovital.treatment.infrastructure.persistence.SessionRepository;
 import com.healthdev.fisiovital.treatment.infrastructure.persistence.TreatmentPlanRepository;
 import com.healthdev.fisiovital.treatment.interfaces.rest.resources.CreateTreatmentPlanResource;
-import com.healthdev.fisiovital.treatment.interfaces.rest.resources.ProgressResource;
 import com.healthdev.fisiovital.treatment.interfaces.rest.resources.SessionResource;
 import com.healthdev.fisiovital.treatment.interfaces.rest.resources.TreatmentPlanResource;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +25,6 @@ public class TreatmentPlanService {
 
     private final TreatmentPlanRepository planRepository;
     private final SessionRepository sessionRepository;
-    private final ClinicalNoteRepository clinicalNoteRepository;
     private final ProfileLookupService profileLookupService;
     private final AvailabilityService availabilityService;
 
@@ -47,7 +44,7 @@ public class TreatmentPlanService {
         return TreatmentPlanResource.from(plan, 0, 0);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<TreatmentPlanResource> findMine() {
         Patient patient = profileLookupService.currentPatient();
         return planRepository.findByPatientIdOrderByCreatedAtDesc(patient.getId()).stream()
@@ -82,25 +79,6 @@ public class TreatmentPlanService {
         return SessionResource.from(session);
     }
 
-    /** US16 - Ver el progreso del plan. Si se completaron todas las sesiones, el plan pasa a FINISHED. */
-    @Transactional
-    public ProgressResource progress(Long planId) {
-        TreatmentPlan plan = getOwnedPlan(planId);
-        long completed = sessionRepository.countByPlanIdAndStatus(planId, SessionStatus.COMPLETED);
-        if (plan.isActive() && completed >= plan.getTotalSessions()) {
-            plan.finish();
-        }
-        List<SessionResource> upcoming = sessionRepository
-                .findByPlanIdAndStatusAndSlotStartTimeAfterOrderBySlotStartTimeAsc(
-                        planId, SessionStatus.RESERVED, LocalDateTime.now())
-                .stream().map(SessionResource::from).toList();
-        String lastObservation = clinicalNoteRepository.findFirstBySessionPlanIdOrderByCreatedAtDesc(planId)
-                .map(note -> note.getObservations())
-                .orElse(null);
-        return new ProgressResource(plan.getId(), plan.getStatus().name(), plan.getTotalSessions(), completed,
-                plan.progressPercent(completed), upcoming, lastObservation);
-    }
-
     private TreatmentPlan getOwnedPlan(Long planId) {
         Patient patient = profileLookupService.currentPatient();
         TreatmentPlan plan = planRepository.findById(planId)
@@ -111,9 +89,14 @@ public class TreatmentPlanService {
         return plan;
     }
 
+    /** Si ya se realizaron todas las sesiones, el plan pasa a FINISHED. */
     private TreatmentPlanResource toResource(TreatmentPlan plan) {
         long booked = sessionRepository.countByPlanIdAndStatusIn(plan.getId(), SessionStatus.ACTIVE);
-        long completed = sessionRepository.countByPlanIdAndStatus(plan.getId(), SessionStatus.COMPLETED);
+        long completed = sessionRepository.countByPlanIdAndStatusInAndSlotEndTimeBefore(
+                plan.getId(), SessionStatus.ACTIVE, LocalDateTime.now());
+        if (plan.isActive() && completed >= plan.getTotalSessions()) {
+            plan.finish();
+        }
         return TreatmentPlanResource.from(plan, booked, completed);
     }
 }
