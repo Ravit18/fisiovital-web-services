@@ -1,13 +1,13 @@
 {
   "info": {
     "_postman_id": "f91420da-e784-4928-92bf-8ff40ac7380a",
-    "name": "FisioVital API - Sprint 1",
-    "description": "Pruebas de los endpoints del Sprint 1 (US01 a US16). Ejecutar en orden con el Collection Runner. Para repetir con datos nuevos, borra el valor de la variable runId.",
+    "name": "FisioVital API - Sprint 1 (US01-US16)",
+    "description": "Correr con el Collection Runner en orden (las peticiones se encadenan con variables de coleccion). La primera peticion genera un runId con datos nuevos; borra el valor de runId para reiniciar. Idioma de los mensajes: {{lang}} (es-419 por defecto).\n\n48 peticiones (3 escenarios por US). Algunas peticiones tienen setups ocultos con pm.sendRequest (se indica en la descripcion). El escenario de timeout 503 de US14 se cubre con mvn test (GlobalExceptionHandlerTest), no aqui.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "01 Auth (US01-US03)",
+      "name": "01 Autenticacion (US01-US03)",
       "item": [
         {
           "name": "US01 Registrar paciente (exitoso)",
@@ -34,7 +34,7 @@
                 "patient"
               ]
             },
-            "description": "",
+            "description": "EP01 US01 escenario exitoso. Genera los datos unicos de la corrida.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"fullName\": \"Carlos Mendoza\",\n  \"email\": \"{{patientEmail}}\",\n  \"password\": \"Fisio2026*\",\n  \"phone\": \"987654321\"\n}",
@@ -51,17 +51,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Primera petición de la corrida: siempre genera datos nuevos y limpia los IDs anteriores",
-                  "const id = Date.now().toString().slice(-6);",
-                  "pm.collectionVariables.set(\"runId\", id);",
-                  "pm.collectionVariables.set(\"patientEmail\", \"carlos.mendoza.\" + id + \"@gmail.com\");",
-                  "pm.collectionVariables.set(\"physioEmail\", \"mariana.rojas.\" + id + \"@gmail.com\");",
-                  "pm.collectionVariables.set(\"licenseNumber\", \"C\" + id);",
-                  "const d = new Date();",
-                  "d.setDate(d.getDate() + 7);",
-                  "pm.collectionVariables.set(\"slotDate\", d.toISOString().slice(0, 10));",
-                  "[\"patientToken\", \"physioToken\", \"patientId\", \"physioId\", \"slotId1\", \"slotId2\", \"slotId3\",",
-                  "  \"planId\", \"sessionId\", \"sessionToCancelId\", \"newPatientToken\", \"newPhysioToken\"].forEach(k => pm.collectionVariables.set(k, \"\"));"
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {\n  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };\n  if (token) header.Authorization = \"Bearer \" + token;\n  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,\n    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },\n  (err, res) => err ? reject(err) : resolve(res.json()));\n});\nconst V = k => pm.collectionVariables.get(k);\nconst S = (k, v) => pm.collectionVariables.set(k, v);\nconst pad = n => String(n).padStart(2, \"0\");\nconst dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());\n\n// runId unico por corrida y datos de las historias (Carlos Mendoza / Mariana Rojas)\nconst rid = Date.now().toString().slice(-6);\nconst n = parseInt(rid, 10);\nS(\"runId\", rid);\nS(\"patientEmail\", \"carlos.mendoza.\" + rid + \"@gmail.com\");\nS(\"physioEmail\", \"mariana.rojas.\" + rid + \"@gmail.com\");\nS(\"lockEmail\", \"paciente.bloqueado.\" + rid + \"@gmail.com\");\nS(\"licenseNumber\", \"C\" + rid);\nS(\"emptySpecialty\", \"POSTQUIRURGICA\");\n// Fecha unica por corrida para publicar bloques (evita solapes entre corridas)\nconst d = new Date();\nd.setDate(d.getDate() + 30 + (n % 90));\nS(\"slotDate\", dstr(d));\nconst hour = 8 + (n % 8);           // 08..15\nS(\"slotHour\", pad(hour));\nS(\"slotHourEnd\", pad(hour + 4));    // bloque de 4 horas => 4 slots de 60 min\nS(\"slotHourPlus2\", pad(hour + 2));  // para el cruce de US07\n// Fecha sin agenda para el caso vacio de US08\nconst e = new Date();\ne.setDate(e.getDate() + 250);\nS(\"emptyAgendaDate\", dstr(e));\n// Limpia el estado de corridas anteriores\n[\"patientToken\",\"physioToken\",\"physioProfileId\",\"planId\",\"sessionId\",\"sessionBId\",\"sessionCId\",\n \"slotId1\",\"slotId2\",\"slotId3\",\"slotId4\",\"slotSoon1\",\"slotSoon2\",\"slotSoon3\",\"soonDate\",\"notifId\",\n \"physioBToken\",\"physioBProfileId\",\"planBId\",\"slotB1\",\"slotB2\",\"physioCToken\",\"patientSinCitas\"\n].forEach(k => S(k, \"\"));"
                 ]
               }
             },
@@ -70,10 +60,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
-                  "const r = pm.response.json();",
-                  "pm.collectionVariables.set(\"patientToken\", r.token);",
-                  "pm.collectionVariables.set(\"patientId\", r.profileId);"
+                  "pm.test(\"Status 201, rol PATIENT y JWT\", () => {\n  pm.response.to.have.status(201);\n  const r = pm.response.json();\n  pm.expect(r.role).to.eql(\"PATIENT\");\n  pm.expect(r.token).to.be.a(\"string\").and.not.empty;\n  pm.expect(r.fullName).to.eql(\"Carlos Mendoza\");\n});\npm.collectionVariables.set(\"patientToken\", pm.response.json().token);\npm.collectionVariables.set(\"patientProfileId\", pm.response.json().profileId);"
                 ]
               }
             }
@@ -121,7 +108,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 409 y mensaje\", () => {\n  pm.response.to.have.status(409);\n  pm.expect(pm.response.json().message).to.eql(t(\"Este correo ya está registrado\", \"This email is already registered\"));\n});"
                 ]
               }
             }
@@ -155,7 +143,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Carlos Mendoza\",\n  \"email\": \"otro.{{patientEmail}}\",\n  \"password\": \"1234\",\n  \"phone\": \"987654321\"\n}",
+              "raw": "{\n  \"fullName\": \"Carlos Mendoza\",\n  \"email\": \"debil.{{patientEmail}}\",\n  \"password\": \"1234\",\n  \"phone\": \"987654321\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -169,7 +157,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 400, mensaje y campo password\", () => {\n  pm.response.to.have.status(400);\n  const r = pm.response.json();\n  pm.expect(r.message).to.eql(t(\"La contraseña debe tener al menos 8 caracteres, una mayúscula y un número\", \"The password must have at least 8 characters, one uppercase letter and one number\"));\n  pm.expect(r.details[0]).to.contain(\"password\");\n});"
                 ]
               }
             }
@@ -203,7 +192,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Mariana Rojas\",\n  \"email\": \"{{physioEmail}}\",\n  \"password\": \"Fisio2026*\",\n  \"phone\": \"912345678\",\n  \"licenseNumber\": \"{{licenseNumber}}\",\n  \"specialty\": \"DEPORTIVA\",\n  \"yearsOfExperience\": 8,\n  \"description\": \"Tecnóloga médica especializada en lesiones deportivas\"\n}",
+              "raw": "{\n  \"fullName\": \"Mariana Rojas\",\n  \"email\": \"{{physioEmail}}\",\n  \"password\": \"Fisio2026*\",\n  \"phone\": \"987654321\",\n  \"licenseNumber\": \"{{licenseNumber}}\",\n  \"specialty\": \"DEPORTIVA\",\n  \"yearsOfExperience\": 8,\n  \"description\": \"Fisioterapeuta deportiva con enfoque en readaptacion.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -217,17 +206,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
-                  "const r = pm.response.json();",
-                  "pm.collectionVariables.set(\"physioToken\", r.token);",
-                  "pm.collectionVariables.set(\"physioId\", r.profileId);"
+                  "pm.test(\"Status 201, rol PHYSIOTHERAPIST y JWT\", () => {\n  pm.response.to.have.status(201);\n  const r = pm.response.json();\n  pm.expect(r.role).to.eql(\"PHYSIOTHERAPIST\");\n  pm.expect(r.token).to.be.a(\"string\").and.not.empty;\n});\npm.collectionVariables.set(\"physioToken\", pm.response.json().token);\npm.collectionVariables.set(\"physioProfileId\", pm.response.json().profileId);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US02 Registrar fisioterapeuta (error: sin colegiatura)",
+          "name": "US02 Registrar fisioterapeuta (error: colegiatura vacía)",
           "request": {
             "method": "POST",
             "header": [
@@ -254,7 +240,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Mariana Rojas\",\n  \"email\": \"sin.colegiatura.{{physioEmail}}\",\n  \"password\": \"Fisio2026*\",\n  \"licenseNumber\": \"\",\n  \"specialty\": \"DEPORTIVA\",\n  \"yearsOfExperience\": 8\n}",
+              "raw": "{\n  \"fullName\": \"Sin Colegiatura\",\n  \"email\": \"sinlic.{{physioEmail}}\",\n  \"password\": \"Fisio2026*\",\n  \"phone\": \"987654321\",\n  \"licenseNumber\": \"\",\n  \"specialty\": \"NEUROLOGICA\",\n  \"yearsOfExperience\": 3,\n  \"description\": \"x\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -268,7 +254,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 400 y mensaje\", () => {\n  pm.response.to.have.status(400);\n  pm.expect(pm.response.json().message).to.eql(t(\"El número de colegiatura es obligatorio\", \"The license number is required\"));\n});"
                 ]
               }
             }
@@ -302,7 +289,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Otra Persona\",\n  \"email\": \"otra.{{physioEmail}}\",\n  \"password\": \"Fisio2026*\",\n  \"licenseNumber\": \"{{licenseNumber}}\",\n  \"specialty\": \"GERIATRICA\",\n  \"yearsOfExperience\": 3\n}",
+              "raw": "{\n  \"fullName\": \"Otra Mariana\",\n  \"email\": \"otra.{{physioEmail}}\",\n  \"password\": \"Fisio2026*\",\n  \"phone\": \"987654321\",\n  \"licenseNumber\": \"{{licenseNumber}}\",\n  \"specialty\": \"DEPORTIVA\",\n  \"yearsOfExperience\": 8,\n  \"description\": \"x\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -316,7 +303,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 409 y mensaje\", () => {\n  pm.response.to.have.status(409);\n  pm.expect(pm.response.json().message).to.eql(t(\"Esta colegiatura ya está registrada\", \"This license number is already registered\"));\n});"
                 ]
               }
             }
@@ -363,8 +351,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
-                  "pm.collectionVariables.set(\"patientToken\", pm.response.json().token);"
+                  "pm.test(\"Status 200, JWT y rol\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.token).to.be.a(\"string\").and.not.empty;\n  pm.expect(r.role).to.eql(\"PATIENT\");\n});"
                 ]
               }
             }
@@ -397,7 +384,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{patientEmail}}\",\n  \"password\": \"Fisio2025\"\n}",
+              "raw": "{\n  \"email\": \"{{patientEmail}}\",\n  \"password\": \"ClaveErronea1\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -411,16 +398,17 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 401\", () => pm.response.to.have.status(401));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 401 y mensaje\", () => {\n  pm.response.to.have.status(401);\n  pm.expect(pm.response.json().message).to.eql(t(\"Correo o contraseña incorrectos\", \"Incorrect email or password\"));\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Sin token (401)",
+          "name": "US03 Iniciar sesión (alternativo: bloqueo tras 5 intentos)",
           "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [
               {
                 "key": "Content-Type",
@@ -432,23 +420,43 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/physiotherapists",
+              "raw": "{{baseUrl}}/auth/sign-in",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "physiotherapists"
+                "auth",
+                "sign-in"
               ]
             },
-            "description": ""
+            "description": "5 intentos fallidos bloquean la cuenta; el 6to intento responde 423.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{lockEmail}}\",\n  \"password\": \"WrongPass123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {\n  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };\n  if (token) header.Authorization = \"Bearer \" + token;\n  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,\n    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },\n  (err, res) => err ? reject(err) : resolve(res.json()));\n});\nconst V = k => pm.collectionVariables.get(k);\nconst S = (k, v) => pm.collectionVariables.set(k, v);\nconst pad = n => String(n).padStart(2, \"0\");\nconst dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());\n\n// Crea una cuenta aparte y falla 5 veces; la 6ta (visible) debe responder 423.\n(async () => {\n  await send(\"POST\", \"/auth/sign-up/patient\",\n    { fullName: \"Paciente Bloqueo\", email: V(\"lockEmail\"), password: \"Fisio2026*\", phone: \"987654321\" });\n  for (let i = 0; i < 5; i++) {\n    await send(\"POST\", \"/auth/sign-in\", { email: V(\"lockEmail\"), password: \"WrongPass123\" });\n  }\n})().catch(e => console.error(\"setup bloqueo:\", e));"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 401\", () => pm.response.to.have.status(401));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 423 y mensaje\", () => {\n  pm.response.to.have.status(423);\n  pm.expect(pm.response.json().message).to.eql(t(\"Demasiados intentos. Vuelve a intentarlo en 15 minutos\", \"Too many attempts. Try again in 15 minutes\"));\n});"
                 ]
               }
             }
@@ -457,225 +465,10 @@
       ]
     },
     {
-      "name": "02 Disponibilidad (US07-US08)",
+      "name": "02 Perfiles (US04-US05)",
       "item": [
         {
-          "name": "US07 Publicar bloques (exitoso)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{physioToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/physiotherapists/me/slots",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "physiotherapists",
-                "me",
-                "slots"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"date\": \"{{slotDate}}\",\n  \"startTime\": \"08:00\",\n  \"endTime\": \"12:00\",\n  \"durationMinutes\": 60\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
-                  "const r = pm.response.json();",
-                  "pm.test(\"Crea 4 bloques\", () => pm.expect(r.length).to.eql(4));",
-                  "pm.collectionVariables.set(\"slotId1\", r[0].id);",
-                  "pm.collectionVariables.set(\"slotId2\", r[1].id);",
-                  "pm.collectionVariables.set(\"slotId3\", r[2].id);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "US07 Publicar bloques (error: fecha pasada)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{physioToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/physiotherapists/me/slots",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "physiotherapists",
-                "me",
-                "slots"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"date\": \"2026-01-10\",\n  \"startTime\": \"08:00\",\n  \"endTime\": \"12:00\",\n  \"durationMinutes\": 60\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "US07 Publicar bloques (alternativo: cruce)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{physioToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/physiotherapists/me/slots",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "physiotherapists",
-                "me",
-                "slots"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"date\": \"{{slotDate}}\",\n  \"startTime\": \"10:30\",\n  \"endTime\": \"11:30\",\n  \"durationMinutes\": 60\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "US08 Ver agenda diaria",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{physioToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/physiotherapists/me/agenda?date={{slotDate}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "physiotherapists",
-                "me",
-                "agenda"
-              ],
-              "query": [
-                {
-                  "key": "date",
-                  "value": "{{slotDate}}"
-                }
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "03 Búsqueda (US04-US06)",
-      "item": [
-        {
-          "name": "US04 Listar todos",
+          "name": "US04 Buscar especialistas (exitoso: filtra por especialidad)",
           "request": {
             "method": "GET",
             "header": [
@@ -694,47 +487,6 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/physiotherapists",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "physiotherapists"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "US04 Filtrar por DEPORTIVA",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{patientToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/physiotherapists?specialty=DEPORTIVA",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -756,14 +508,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                  "pm.test(\"Status 200, solo DEPORTIVA y sin mensaje de vacio\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.items).to.be.an(\"array\").and.not.empty;\n  pm.expect(r.items[0].specialty).to.eql(\"DEPORTIVA\");\n  pm.expect(r.message).to.eql(null);\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US04 Filtrar por PEDIATRICA (sin resultados)",
+          "name": "US04 Buscar especialistas (error: sin resultados)",
           "request": {
             "method": "GET",
             "header": [
@@ -781,7 +533,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/physiotherapists?specialty=PEDIATRICA",
+              "raw": "{{baseUrl}}/physiotherapists",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -791,11 +543,11 @@
               "query": [
                 {
                   "key": "specialty",
-                  "value": "PEDIATRICA"
+                  "value": "{{emptySpecialty}}"
                 }
               ]
             },
-            "description": ""
+            "description": "Usa la especialidad reservada POSTQUIRURGICA ({{emptySpecialty}}). Si el equipo registra un fisio con esa especialidad, el test acepta resultados con mensaje nulo."
           },
           "event": [
             {
@@ -803,14 +555,15 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 200 con items y mensaje coherentes\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.items).to.be.an(\"array\");\n  if (r.items.length === 0) {\n    pm.expect(r.message).to.eql(t(\"No hay especialistas disponibles para esta especialidad\", \"There are no specialists available for this specialty\"));\n  } else {\n    pm.expect(r.message).to.eql(null); // si alguien registro esa especialidad, hay resultados\n  }\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US05 Ver perfil del fisioterapeuta",
+          "name": "US04 Buscar especialistas (alternativo: sin filtro)",
           "request": {
             "method": "GET",
             "header": [
@@ -828,13 +581,12 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/physiotherapists/{{physioId}}",
+              "raw": "{{baseUrl}}/physiotherapists",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "physiotherapists",
-                "{{physioId}}"
+                "physiotherapists"
               ]
             },
             "description": ""
@@ -845,14 +597,56 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                  "pm.test(\"Status 200 y lista no vacia\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.items).to.be.an(\"array\").and.not.empty;\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US05 Ver perfil (error: no existe)",
+          "name": "US05 Ver perfil público (exitoso)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{patientToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/physiotherapists/{{physioProfileId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "physiotherapists",
+                "{{physioProfileId}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 con datos publicos\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.specialty).to.eql(\"DEPORTIVA\");\n  pm.expect(r.licenseNumber).to.eql(pm.collectionVariables.get(\"licenseNumber\"));\n  pm.expect(r.description).to.be.a(\"string\").and.not.empty;\n  pm.expect(r).to.have.property(\"hasAvailability\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US05 Ver perfil público (error: inexistente)",
           "request": {
             "method": "GET",
             "header": [
@@ -887,14 +681,15 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 404 y mensaje\", () => {\n  pm.response.to.have.status(404);\n  pm.expect(pm.response.json().message).to.eql(t(\"Perfil no disponible\", \"Profile not available\"));\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US06 Consultar horarios libres",
+          "name": "US05 Ver perfil público (alternativo: sin horarios publicados)",
           "request": {
             "method": "GET",
             "header": [
@@ -912,13 +707,61 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/physiotherapists/{{physioId}}/slots",
+              "raw": "{{baseUrl}}/physiotherapists/{{physioProfileId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "physiotherapists",
-                "{{physioId}}",
+                "{{physioProfileId}}"
+              ]
+            },
+            "description": "Todavia no se publican bloques en US07, por lo que el perfil no tiene disponibilidad."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 200, hasAvailability=false y mensaje\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.hasAvailability).to.eql(false);\n  pm.expect(r.availabilityMessage).to.eql(t(\"Sin disponibilidad por ahora\", \"No availability for now\"));\n});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 Disponibilidad (US06-US07)",
+      "item": [
+        {
+          "name": "US06 Consultar horarios (error: sin horarios publicados)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{patientToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/physiotherapists/{{physioProfileId}}/slots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "physiotherapists",
+                "{{physioProfileId}}",
                 "slots"
               ]
             },
@@ -930,7 +773,273 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 200 y mensaje\", () => {\n  pm.response.to.have.status(200);\n  pm.expect(pm.response.json().message).to.eql(t(\"Este especialista aún no tiene horarios disponibles\", \"This specialist has no available time slots yet\"));\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US07 Publicar bloque (exitoso)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/physiotherapists/me/slots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "physiotherapists",
+                "me",
+                "slots"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{slotDate}}\",\n  \"startTime\": \"{{slotHour}}:00\",\n  \"endTime\": \"{{slotHourEnd}}:00\",\n  \"durationMinutes\": 60\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201 y 4 bloques de 60 min\", () => {\n  pm.response.to.have.status(201);\n  const r = pm.response.json();\n  pm.expect(r).to.be.an(\"array\").and.have.lengthOf(4);\n});\nconst slots = pm.response.json();\n[\"slotId1\",\"slotId2\",\"slotId3\",\"slotId4\"].forEach((k, i) => pm.collectionVariables.set(k, slots[i].id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US07 Publicar bloque (error: fecha pasada)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/physiotherapists/me/slots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "physiotherapists",
+                "me",
+                "slots"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2020-01-01\",\n  \"startTime\": \"08:00\",\n  \"endTime\": \"10:00\",\n  \"durationMinutes\": 60\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 422 y mensaje\", () => {\n  pm.response.to.have.status(422);\n  pm.expect(pm.response.json().message).to.eql(t(\"No puedes publicar horarios en fechas pasadas\", \"You cannot publish time slots on past dates\"));\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US07 Publicar bloque (alternativo: cruce con bloque existente)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/physiotherapists/me/slots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "physiotherapists",
+                "me",
+                "slots"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{slotDate}}\",\n  \"startTime\": \"{{slotHourPlus2}}:00\",\n  \"endTime\": \"{{slotHourEnd}}:00\",\n  \"durationMinutes\": 60\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 409 y mensaje\", () => {\n  pm.response.to.have.status(409);\n  pm.expect(pm.response.json().message).to.eql(t(\"Este horario se cruza con un bloque ya publicado\", \"This time overlaps with an already published slot\"));\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US06 Consultar horarios (exitoso)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{patientToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/physiotherapists/{{physioProfileId}}/slots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "physiotherapists",
+                "{{physioProfileId}}",
+                "slots"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{slotDate}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{slotDate}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 y 4 bloques libres\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.slots).to.be.an(\"array\").and.have.lengthOf(4);\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US06 Consultar horarios (alternativo: semana vacia muestra la siguiente)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{patientToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/physiotherapists/{{physioProfileId}}/slots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "physiotherapists",
+                "{{physioProfileId}}",
+                "slots"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2020-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2020-01-07"
+                }
+              ]
+            },
+            "description": "Consulta una semana pasada (vacia) con disponibilidad futura: el servicio indica la siguiente semana con horarios."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 200, proxima semana disponible y mensaje\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.nextAvailableWeek).to.not.eql(null);\n  pm.expect(r.message).to.eql(t(\"No hay horarios esta semana; te mostramos la siguiente\", \"No slots this week; showing the next one\"));\n});"
                 ]
               }
             }
@@ -939,10 +1048,10 @@
       ]
     },
     {
-      "name": "04 Plan y sesiones (US08-US12)",
+      "name": "04 Planes de tratamiento (US09-US10)",
       "item": [
         {
-          "name": "US09 Registrar plan (exitoso)",
+          "name": "US09 Registrar plan de tratamiento (exitoso: 12 sesiones)",
           "request": {
             "method": "POST",
             "header": [
@@ -971,7 +1080,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"physiotherapistId\": {{physioId}},\n  \"diagnosis\": \"Lesión de ligamento en rodilla derecha\",\n  \"totalSessions\": 12,\n  \"frequencyPerWeek\": 2\n}",
+              "raw": "{\n  \"physiotherapistId\": \"{{physioProfileId}}\",\n  \"diagnosis\": \"Lumbalgia cronica\",\n  \"totalSessions\": 12,\n  \"frequencyPerWeek\": 2\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -985,8 +1094,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set(\"planId\", pm.response.json().id);"
+                  "pm.test(\"Status 201, plan ACTIVO 0/12\", () => {\n  pm.response.to.have.status(201);\n  const r = pm.response.json();\n  pm.expect(r.status).to.eql(\"ACTIVE\");\n  pm.expect(r.totalSessions).to.eql(12);\n  pm.expect(r.bookedSessions).to.eql(0);\n});\npm.collectionVariables.set(\"planId\", pm.response.json().id);"
                 ]
               }
             }
@@ -1022,7 +1130,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"physiotherapistId\": {{physioId}},\n  \"diagnosis\": \"Lumbalgia\",\n  \"totalSessions\": 0,\n  \"frequencyPerWeek\": 2\n}",
+              "raw": "{\n  \"physiotherapistId\": \"{{physioProfileId}}\",\n  \"diagnosis\": \"x\",\n  \"totalSessions\": 0,\n  \"frequencyPerWeek\": 2\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1036,14 +1144,15 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 400, mensaje y campo\", () => {\n  pm.response.to.have.status(400);\n  const r = pm.response.json();\n  pm.expect(r.message).to.eql(t(\"Indica un número de sesiones entre 1 y 30\", \"Enter a number of sessions between 1 and 30\"));\n  pm.expect(r.details[0]).to.contain(\"totalSessions\");\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US09 Registrar plan (alternativo: plan activo existente)",
+          "name": "US09 Registrar plan (alternativo: ya tiene plan activo)",
           "request": {
             "method": "POST",
             "header": [
@@ -1072,7 +1181,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"physiotherapistId\": {{physioId}},\n  \"diagnosis\": \"Otro diagnóstico\",\n  \"totalSessions\": 6,\n  \"frequencyPerWeek\": 1\n}",
+              "raw": "{\n  \"physiotherapistId\": \"{{physioProfileId}}\",\n  \"diagnosis\": \"otro diagnostico\",\n  \"totalSessions\": 6,\n  \"frequencyPerWeek\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1086,7 +1195,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 409 y mensaje con el plan existente\", () => {\n  pm.response.to.have.status(409);\n  pm.expect(pm.response.json().message).to.contain(t(\"Ya tienes un plan activo con este especialista\", \"You already have an active plan with this specialist\"));\n});"
                 ]
               }
             }
@@ -1124,7 +1234,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"slotId\": {{slotId1}}\n}",
+              "raw": "{\n  \"slotId\": \"{{slotId1}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1138,15 +1248,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set(\"sessionId\", pm.response.json().id);"
+                  "pm.test(\"Status 201, sesion RESERVED 1/12\", () => {\n  pm.response.to.have.status(201);\n  const r = pm.response.json();\n  pm.expect(r.status).to.eql(\"RESERVED\");\n  pm.expect(r.sessionNumber).to.eql(1);\n  pm.expect(r.totalSessions).to.eql(12);\n  pm.expect(r.lateChange).to.eql(false);\n});\npm.collectionVariables.set(\"sessionId\", pm.response.json().id);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US10 Reservar sesión (error: bloque ocupado)",
+          "name": "US10 Reservar sesión (error: bloque ya ocupado)",
           "request": {
             "method": "POST",
             "header": [
@@ -1174,10 +1283,10 @@
                 "sessions"
               ]
             },
-            "description": "",
+            "description": "El bloque ya fue reservado por la peticion anterior (bloqueo optimista @Version).",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"slotId\": {{slotId1}}\n}",
+              "raw": "{\n  \"slotId\": \"{{slotId1}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1191,16 +1300,17 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 409 y mensaje\", () => {\n  pm.response.to.have.status(409);\n  pm.expect(pm.response.json().message).to.eql(t(\"Este horario acaba de ser reservado, elige otro\", \"This time slot was just booked, choose another one\"));\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Ver mis planes",
+          "name": "US10 Reservar sesión (alternativo: plan ya completado)",
           "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [
               {
                 "key": "Content-Type",
@@ -1216,29 +1326,54 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/treatment-plans/me",
+              "raw": "{{baseUrl}}/treatment-plans/{{planBId}}/sessions",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "treatment-plans",
-                "me"
+                "{{planBId}}",
+                "sessions"
               ]
             },
-            "description": ""
+            "description": "Setup oculto con pm.sendRequest: registra un fisioterapeuta auxiliar, publica 2 bloques y agota un plan de 1 sesion. La peticion visible reserva una sesion mas y debe fallar con 422.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slotId\": \"{{slotB2}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {\n  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };\n  if (token) header.Authorization = \"Bearer \" + token;\n  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,\n    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },\n  (err, res) => err ? reject(err) : resolve(res.json()));\n});\nconst V = k => pm.collectionVariables.get(k);\nconst S = (k, v) => pm.collectionVariables.set(k, v);\nconst pad = n => String(n).padStart(2, \"0\");\nconst dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());\n\n// Setup oculto: un plan aparte (1 sesion, otro fisioterapeuta) ya agotado.\n(async () => {\n  const physioB = await send(\"POST\", \"/auth/sign-up/physiotherapist\", {\n    fullName: \"Fisio Plan B\", email: \"fisio.planb.\" + V(\"runId\") + \"@gmail.com\", password: \"Fisio2026*\",\n    phone: \"987654321\", licenseNumber: \"CB\" + V(\"runId\"), specialty: \"NEUROLOGICA\",\n    yearsOfExperience: 4, description: \"Fisioterapeuta del plan agotado\" });\n  S(\"physioBToken\", physioB.token);\n  S(\"physioBProfileId\", physioB.profileId);\n  const slotsB = await send(\"POST\", \"/physiotherapists/me/slots\", {\n    date: V(\"slotDate\"), startTime: \"06:00\", endTime: \"08:00\", durationMinutes: 60 }, physioB.token);\n  S(\"slotB1\", slotsB[0].id);\n  S(\"slotB2\", slotsB[1].id);\n  const planB = await send(\"POST\", \"/treatment-plans\", {\n    physiotherapistId: physioB.profileId, diagnosis: \"Plan de una sesion\", totalSessions: 1, frequencyPerWeek: 1 },\n    V(\"patientToken\"));\n  S(\"planBId\", planB.id);\n  await send(\"POST\", \"/treatment-plans/\" + planB.id + \"/sessions\", { slotId: slotsB[0].id }, V(\"patientToken\"));\n})().catch(e => console.error(\"setup plan agotado:\", e));"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 422 y mensaje\", () => {\n  pm.response.to.have.status(422);\n  pm.expect(pm.response.json().message).to.eql(t(\"Ya reservaste todas las sesiones de tu plan\", \"You have already booked all the sessions of your plan\"));\n});"
                 ]
               }
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "name": "05 Sesiones y agenda (US11-US12-US08)",
+      "item": [
         {
           "name": "US11 Reprogramar sesión (exitoso)",
           "request": {
@@ -1271,7 +1406,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"newSlotId\": {{slotId2}}\n}",
+              "raw": "{\n  \"newSlotId\": \"{{slotId2}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1285,14 +1420,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                  "pm.test(\"Status 200, mueve el bloque sin cambio tardio\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.status).to.eql(\"RESERVED\");\n  pm.expect(r.slotId).to.eql(pm.collectionVariables.get(\"slotId2\"));\n  pm.expect(r.lateChange).to.eql(false);\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US11 Reprogramar sesión (error: bloque no disponible)",
+          "name": "US11 Reprogramar sesión (error: bloque ocupado)",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1320,10 +1455,10 @@
                 "reschedule"
               ]
             },
-            "description": "",
+            "description": "El bloque destino es el mismo que ocupa la sesion (esta BOOKED).",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"newSlotId\": {{slotId2}}\n}",
+              "raw": "{\n  \"newSlotId\": \"{{slotId2}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1337,16 +1472,17 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 409 y mensaje\", () => {\n  pm.response.to.have.status(409);\n  pm.expect(pm.response.json().message).to.eql(t(\"Este horario no está disponible\", \"This time slot is not available\"));\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US10 Reservar segunda sesión (para cancelar)",
+          "name": "US11 Reprogramar sesión (alternativo: cambio tardio <24h)",
           "request": {
-            "method": "POST",
+            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
@@ -1362,20 +1498,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/treatment-plans/{{planId}}/sessions",
+              "raw": "{{baseUrl}}/sessions/{{sessionBId}}/reschedule",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "treatment-plans",
-                "{{planId}}",
-                "sessions"
+                "sessions",
+                "{{sessionBId}}",
+                "reschedule"
               ]
             },
-            "description": "",
+            "description": "Reprograma una sesion que empieza en menos de 24 horas: la respuesta marca lateChange=true.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"slotId\": {{slotId3}}\n}",
+              "raw": "{\n  \"newSlotId\": \"{{slotSoon2}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1385,12 +1521,20 @@
           },
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {\n  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };\n  if (token) header.Authorization = \"Bearer \" + token;\n  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,\n    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },\n  (err, res) => err ? reject(err) : resolve(res.json()));\n});\nconst V = k => pm.collectionVariables.get(k);\nconst S = (k, v) => pm.collectionVariables.set(k, v);\nconst pad = n => String(n).padStart(2, \"0\");\nconst dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());\n\n// Setup oculto: publica 3 bloques que empiezan en ~2 horas y reserva 2 sesiones\n// (una se reprograma y cancela en los escenarios alternativos; la otra queda en la agenda).\n(async () => {\n  const now = new Date();\n  let start = new Date(now.getFullYear(), now.getMonth(), now.getDate(),\n    now.getHours(), now.getMinutes() + 120 + (parseInt(V(\"runId\"), 10) % 50), 0, 0);\n  // Si los bloques cruzarian la medianoche, empiezan a las 00:00 del dia siguiente (sigue siendo <24h)\n  if (new Date(start.getTime() + 3 * 3600 * 1000).getDate() !== start.getDate()) {\n    start = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1, 0, 0, 0, 0);\n  }\n  S(\"soonDate\", dstr(start));\n  S(\"soonStart\", pad(start.getHours()) + \":\" + pad(start.getMinutes()));\n  const end = new Date(start.getTime() + 3 * 3600 * 1000);\n  const slots = await send(\"POST\", \"/physiotherapists/me/slots\", {\n    date: dstr(start), startTime: pad(start.getHours()) + \":\" + pad(start.getMinutes()),\n    endTime: pad(end.getHours()) + \":\" + pad(end.getMinutes()), durationMinutes: 60 }, V(\"physioToken\"));\n  S(\"slotSoon1\", slots[0].id);\n  S(\"slotSoon2\", slots[1].id);\n  S(\"slotSoon3\", slots[2].id);\n  const b = await send(\"POST\", \"/treatment-plans/\" + V(\"planId\") + \"/sessions\", { slotId: slots[0].id }, V(\"patientToken\"));\n  S(\"sessionBId\", b.id);\n  const c = await send(\"POST\", \"/treatment-plans/\" + V(\"planId\") + \"/sessions\", { slotId: slots[2].id }, V(\"patientToken\"));\n  S(\"sessionCId\", c.id);\n})().catch(e => console.error(\"setup sesiones <24h:\", e));"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set(\"sessionToCancelId\", pm.response.json().id);"
+                  "pm.test(\"Status 200 con aviso de cambio tardio\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.status).to.eql(\"RESERVED\");\n  pm.expect(r.slotId).to.eql(pm.collectionVariables.get(\"slotSoon2\"));\n  pm.expect(r.lateChange).to.eql(true);\n});"
                 ]
               }
             }
@@ -1415,13 +1559,13 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/sessions/{{sessionToCancelId}}/cancel",
+              "raw": "{{baseUrl}}/sessions/{{sessionId}}/cancel",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "sessions",
-                "{{sessionToCancelId}}",
+                "{{sessionId}}",
                 "cancel"
               ]
             },
@@ -1433,14 +1577,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                  "pm.test(\"Status 200, CANCELLED y sin cambio tardio\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.status).to.eql(\"CANCELLED\");\n  pm.expect(r.lateChange).to.eql(false);\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US12 Cancelar sesión (error: ya no está reservada)",
+          "name": "US12 Cancelar sesión (error: ya cancelada)",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1458,13 +1602,13 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/sessions/{{sessionToCancelId}}/cancel",
+              "raw": "{{baseUrl}}/sessions/{{sessionId}}/cancel",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "sessions",
-                "{{sessionToCancelId}}",
+                "{{sessionId}}",
                 "cancel"
               ]
             },
@@ -1476,14 +1620,58 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 422 y mensaje\", () => {\n  pm.response.to.have.status(422);\n  pm.expect(pm.response.json().message).to.eql(t(\"La sesión no está reservada\", \"The session is not booked\"));\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US08 Agenda con sesiones (fisioterapeuta)",
+          "name": "US12 Cancelar sesión (alternativo: cancelación tardia <24h)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{patientToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sessions/{{sessionBId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sessions",
+                "{{sessionBId}}",
+                "cancel"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 y estado LATE_CANCELLED\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.status).to.eql(\"LATE_CANCELLED\");\n  pm.expect(r.lateChange).to.eql(true);\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US08 Ver agenda diaria (exitoso)",
           "request": {
             "method": "GET",
             "header": [
@@ -1501,7 +1689,106 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/physiotherapists/me/agenda?date={{slotDate}}",
+              "raw": "{{baseUrl}}/physiotherapists/me/agenda",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "physiotherapists",
+                "me",
+                "agenda"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "{{soonDate}}"
+                }
+              ]
+            },
+            "description": "La agenda del dia de los bloques <24h: una sesion sigue reservada (sessionC)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200, sesion BOOKED del paciente y sin mensaje de vacio\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.message).to.eql(null);\n  const booked = r.items.filter(i => i.status === \"BOOKED\");\n  pm.expect(booked).to.have.lengthOf(1);\n  pm.expect(booked[0].patientName).to.eql(\"Carlos Mendoza\");\n  pm.expect(booked[0].sessionNumber).to.be.a(\"number\");\n  pm.expect(booked[0].totalSessions).to.eql(12);\n  pm.expect(booked[0].sessionStatus).to.eql(\"RESERVED\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US08 Ver agenda diaria (error: sin sesiones)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/physiotherapists/me/agenda",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "physiotherapists",
+                "me",
+                "agenda"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "{{emptyAgendaDate}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 200, agenda vacia y mensaje\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.items).to.be.an(\"array\").and.empty;\n  pm.expect(r.message).to.eql(t(\"No tienes sesiones programadas para hoy\", \"You have no sessions scheduled for today\"));\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US08 Ver agenda diaria (alternativo: bloque liberado por cancelacion)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/physiotherapists/me/agenda",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1517,7 +1804,7 @@
                 }
               ]
             },
-            "description": ""
+            "description": "La sesion de US12 se cancelo en este dia: el bloque aparece liberado con la marca FREE_CANCELLED."
           },
           "event": [
             {
@@ -1525,7 +1812,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 200, bloque FREE_CANCELLED por cancelacion del paciente\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  const liberado = r.items.filter(i => i.status === \"FREE_CANCELLED\");\n  pm.expect(liberado).to.have.lengthOf.at.least(1);\n  pm.expect(r.message).to.eql(t(\"No tienes sesiones programadas para hoy\", \"You have no sessions scheduled for today\"));\n});"
                 ]
               }
             }
@@ -1534,12 +1822,12 @@
       ]
     },
     {
-      "name": "05 Historial de citas (US14-US16)",
+      "name": "06 Notificaciones (US13)",
       "item": [
         {
-          "name": "Preparación: registrar paciente sin citas",
+          "name": "US13 Listar notificaciones (exitoso)",
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
               {
                 "key": "Content-Type",
@@ -1548,29 +1836,22 @@
               {
                 "key": "Accept-Language",
                 "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/sign-up/patient",
+              "raw": "{{baseUrl}}/notifications",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "auth",
-                "sign-up",
-                "patient"
+                "notifications"
               ]
             },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Paciente Nuevo {{runId}}\",\n  \"email\": \"nuevo.{{patientEmail}}\",\n  \"password\": \"Fisio2026*\",\n  \"phone\": \"987654322\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": "El fisioterapeuta recibe el aviso cuando el paciente cancela/reprograma (US11/US12)."
           },
           "event": [
             {
@@ -1578,17 +1859,16 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set(\"newPatientToken\", pm.response.json().token);"
+                  "pm.test(\"Status 200, aviso de cancelacion del paciente\", () => {\n  pm.response.to.have.status(200);\n  const list = pm.response.json();\n  pm.expect(list).to.be.an(\"array\").and.not.empty;\n  pm.expect(list[0].type).to.eql(\"SESSION_CANCELLED\");\n  pm.expect(list[0].message).to.contain(\"canceló\");\n  pm.expect(list[0].read).to.eql(false);\n});\npm.collectionVariables.set(\"notifId\", pm.response.json()[0].id);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Preparación: registrar fisioterapeuta sin citas",
+          "name": "US13 Marcar notificación como leída (alternativo)",
           "request": {
-            "method": "POST",
+            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
@@ -1597,29 +1877,24 @@
               {
                 "key": "Accept-Language",
                 "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/sign-up/physiotherapist",
+              "raw": "{{baseUrl}}/notifications/{{notifId}}/read",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "auth",
-                "sign-up",
-                "physiotherapist"
+                "notifications",
+                "{{notifId}}",
+                "read"
               ]
             },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Fisioterapeuta Nuevo {{runId}}\",\n  \"email\": \"nuevo.{{physioEmail}}\",\n  \"password\": \"Fisio2026*\",\n  \"licenseNumber\": \"N{{runId}}\",\n  \"specialty\": \"GERIATRICA\",\n  \"yearsOfExperience\": 2\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": ""
           },
           "event": [
             {
@@ -1627,15 +1902,63 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set(\"newPhysioToken\", pm.response.json().token);"
+                  "pm.test(\"Status 200 y read=true\", () => {\n  pm.response.to.have.status(200);\n  pm.expect(pm.response.json().read).to.eql(true);\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US14 Historial de citas del paciente (exitoso)",
+          "name": "US13 Marcar notificación (error: inexistente)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/999999/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "999999",
+                "read"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 404 y mensaje\", () => {\n  pm.response.to.have.status(404);\n  pm.expect(pm.response.json().message).to.eql(t(\"La notificación no existe\", \"The notification does not exist\"));\n});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 Historial de citas (US14-US16)",
+      "item": [
+        {
+          "name": "US14 Ver mi historial (exitoso: paginado)",
           "request": {
             "method": "GET",
             "header": [
@@ -1653,297 +1976,305 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/patients/me/appointments",
+              "raw": "{{baseUrl}}/appointments/me",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "patients",
-                "me",
-                "appointments"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
-                  "const r = pm.response.json();",
-                  "pm.test(\"Tiene citas\", () => pm.expect(r.appointments.length).to.be.above(0));",
-                  "pm.test(\"Ordenadas de la más nueva a la más antigua\", () => {",
-                  "  const times = r.appointments.map(a => a.startTime);",
-                  "  pm.expect(times).to.eql([...times].sort().reverse());",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "US14 Historial de citas del paciente (error: el fisioterapeuta no tiene acceso)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{physioToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/patients/me/appointments",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "patients",
-                "me",
-                "appointments"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "US14 Historial de citas del paciente (alternativo: sin citas)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{newPatientToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/patients/me/appointments",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "patients",
-                "me",
-                "appointments"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
-                  "const r = pm.response.json();",
-                  "pm.test(\"Sin citas y con mensaje\", () => {",
-                  "  pm.expect(r.appointments.length).to.eql(0);",
-                  "  pm.expect(r.message).to.be.a(\"string\");",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "US15 Historial de citas del fisioterapeuta (exitoso)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{physioToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/physiotherapists/me/appointments",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "physiotherapists",
-                "me",
-                "appointments"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
-                  "const r = pm.response.json();",
-                  "pm.test(\"Tiene citas\", () => pm.expect(r.appointments.length).to.be.above(0));",
-                  "pm.test(\"Ordenadas de la más nueva a la más antigua\", () => {",
-                  "  const times = r.appointments.map(a => a.startTime);",
-                  "  pm.expect(times).to.eql([...times].sort().reverse());",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "US15 Historial de citas del fisioterapeuta (error: el paciente no tiene acceso)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{patientToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/physiotherapists/me/appointments",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "physiotherapists",
-                "me",
-                "appointments"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "US15 Historial de citas del fisioterapeuta (alternativo: sin citas)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{newPhysioToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/physiotherapists/me/appointments",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "physiotherapists",
-                "me",
-                "appointments"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
-                  "const r = pm.response.json();",
-                  "pm.test(\"Sin citas y con mensaje\", () => {",
-                  "  pm.expect(r.appointments.length).to.eql(0);",
-                  "  pm.expect(r.message).to.be.a(\"string\");",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "US16 Historial de citas de un paciente (exitoso)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{physioToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/patients/appointments?fullName=Carlos Mendoza",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "patients",
-                "appointments"
+                "appointments",
+                "me"
               ],
               "query": [
                 {
-                  "key": "fullName",
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "2"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 paginado con datos\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.page).to.eql(0);\n  pm.expect(r.size).to.eql(2);\n  pm.expect(r.appointments).to.be.an(\"array\").and.have.lengthOf(2);\n  pm.expect(r.totalElements).to.be.at.least(3);\n  pm.expect(r.totalPages).to.be.at.least(2);\n  pm.expect(r.message).to.eql(null);\n  pm.expect(r.appointments[0].patientName).to.eql(\"Carlos Mendoza\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US14 Ver mi historial (error: rol fisioterapeuta)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 403 y mensaje\", () => {\n  pm.response.to.have.status(403);\n  pm.expect(pm.response.json().message).to.eql(t(\"No tienes permiso para realizar esta acción\", \"You are not allowed to perform this action\"));\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US14 Ver mi historial (alternativo: paginacion real, pagina fuera de rango)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{patientToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "me"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "999"
+                },
+                {
+                  "key": "size",
+                  "value": "2"
+                }
+              ]
+            },
+            "description": "Valida la paginacion real (page/size) del arreglo de US14. El timeout -> 503 se valida con mvn test (clase shared.GlobalExceptionHandlerTest)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200, pagina 999 respetada y conteo real\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.page).to.eql(999);\n  pm.expect(r.appointments).to.be.an(\"array\").and.empty;\n  pm.expect(r.totalElements).to.be.at.least(3);\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US15 Ver historial del fisioterapeuta (exitoso)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/physiotherapist/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "physiotherapist",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 con citas y sin paginacion\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.appointments).to.be.an(\"array\").and.not.empty;\n  pm.expect(r.appointments[0].patientName).to.eql(\"Carlos Mendoza\");\n  pm.expect(r.page).to.eql(null);\n  pm.expect(r.message).to.eql(null);\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US15 Ver historial del fisioterapeuta (error: rol paciente)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{patientToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/physiotherapist/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "physiotherapist",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 403 y mensaje\", () => {\n  pm.response.to.have.status(403);\n  pm.expect(pm.response.json().message).to.eql(t(\"No tienes permiso para realizar esta acción\", \"You are not allowed to perform this action\"));\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US15 Ver historial del fisioterapeuta (alternativo: sin citas)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioCToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/physiotherapist/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "physiotherapist",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {\n  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };\n  if (token) header.Authorization = \"Bearer \" + token;\n  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,\n    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },\n  (err, res) => err ? reject(err) : resolve(res.json()));\n});\nconst V = k => pm.collectionVariables.get(k);\nconst S = (k, v) => pm.collectionVariables.set(k, v);\nconst pad = n => String(n).padStart(2, \"0\");\nconst dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());\n\n// Setup oculto: un fisioterapeuta recien registrado, sin citas.\n(async () => {\n  const c = await send(\"POST\", \"/auth/sign-up/physiotherapist\", {\n    fullName: \"Fisio Sin Citas\", email: \"fisio.sincitas.\" + V(\"runId\") + \"@gmail.com\", password: \"Fisio2026*\",\n    phone: \"987654321\", licenseNumber: \"CC\" + V(\"runId\"), specialty: \"PEDIATRICA\",\n    yearsOfExperience: 2, description: \"Fisioterapeuta sin citas todavia\" });\n  S(\"physioCToken\", c.token);\n})().catch(e => console.error(\"setup fisio sin citas:\", e));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 200, lista vacia y mensaje\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.appointments).to.be.an(\"array\").and.empty;\n  pm.expect(r.message).to.eql(t(\"Haz tu primera cita para tener historial\", \"Book your first appointment to have a history\"));\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US16 Buscar historial de un paciente (exitoso)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/physiotherapist/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "physiotherapist",
+                "me"
+              ],
+              "query": [
+                {
+                  "key": "patientName",
                   "value": "Carlos Mendoza"
                 }
               ]
@@ -1956,20 +2287,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
-                  "const r = pm.response.json();",
-                  "pm.test(\"Tiene citas\", () => pm.expect(r.appointments.length).to.be.above(0));",
-                  "pm.test(\"Ordenadas de la más nueva a la más antigua\", () => {",
-                  "  const times = r.appointments.map(a => a.startTime);",
-                  "  pm.expect(times).to.eql([...times].sort().reverse());",
-                  "});"
+                  "pm.test(\"Status 200 con citas del paciente\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.appointments).to.be.an(\"array\").and.not.empty;\n  r.appointments.forEach(a => pm.expect(a.patientName).to.eql(\"Carlos Mendoza\"));\n  pm.expect(r.page).to.eql(null);\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US16 Historial de citas de un paciente (error: el paciente no existe)",
+          "name": "US16 Buscar historial de un paciente (error: nombre inexistente)",
           "request": {
             "method": "GET",
             "header": [
@@ -1987,18 +2312,19 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/patients/appointments?fullName=Paciente Inexistente {{runId}}",
+              "raw": "{{baseUrl}}/appointments/physiotherapist/me",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "patients",
-                "appointments"
+                "appointments",
+                "physiotherapist",
+                "me"
               ],
               "query": [
                 {
-                  "key": "fullName",
-                  "value": "Paciente Inexistente {{runId}}"
+                  "key": "patientName",
+                  "value": "Nombre Que No Existe"
                 }
               ]
             },
@@ -2010,14 +2336,15 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 404 y mensaje\", () => {\n  pm.response.to.have.status(404);\n  pm.expect(pm.response.json().message).to.eql(t(\"El paciente que ha digitado no existe\", \"The patient you entered does not exist\"));\n});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "US16 Historial de citas de un paciente (alternativo: sin citas)",
+          "name": "US16 Buscar historial de un paciente (alternativo: paciente sin citas)",
           "request": {
             "method": "GET",
             "header": [
@@ -2035,18 +2362,19 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/patients/appointments?fullName=Paciente Nuevo {{runId}}",
+              "raw": "{{baseUrl}}/appointments/physiotherapist/me",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "patients",
-                "appointments"
+                "appointments",
+                "physiotherapist",
+                "me"
               ],
               "query": [
                 {
-                  "key": "fullName",
-                  "value": "Paciente Nuevo {{runId}}"
+                  "key": "patientName",
+                  "value": "{{patientSinCitas}}"
                 }
               ]
             },
@@ -2054,16 +2382,21 @@
           },
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {\n  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };\n  if (token) header.Authorization = \"Bearer \" + token;\n  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,\n    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },\n  (err, res) => err ? reject(err) : resolve(res.json()));\n});\nconst V = k => pm.collectionVariables.get(k);\nconst S = (k, v) => pm.collectionVariables.set(k, v);\nconst pad = n => String(n).padStart(2, \"0\");\nconst dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());\n\n// Setup oculto: paciente registrado en esta corrida, sin citas todavia.\n(async () => {\n  const name = \"Paciente Sin Citas \" + V(\"runId\");\n  await send(\"POST\", \"/auth/sign-up/patient\", {\n    fullName: name, email: \"paciente.sincitas.\" + V(\"runId\") + \"@gmail.com\",\n    password: \"Fisio2026*\", phone: \"987654321\" });\n  S(\"patientSinCitas\", name);\n})().catch(e => console.error(\"setup paciente sin citas:\", e));"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
-                  "const r = pm.response.json();",
-                  "pm.test(\"Sin citas y con mensaje\", () => {",
-                  "  pm.expect(r.appointments.length).to.eql(0);",
-                  "  pm.expect(r.message).to.be.a(\"string\");",
-                  "});"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 200, lista vacia y mensaje\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.appointments).to.be.an(\"array\").and.empty;\n  pm.expect(r.message).to.eql(t(\"El paciente elegido aún no tiene citas en su historial\", \"The selected patient has no appointments in their history yet\"));\n});"
                 ]
               }
             }
@@ -2072,53 +2405,12 @@
       ]
     },
     {
-      "name": "06 Notificaciones (US13)",
+      "name": "08 Asistente IA (US17-US20)",
       "item": [
         {
-          "name": "US13 Notificaciones del fisioterapeuta",
+          "name": "US17 Consultar dudas al asistente (exitoso: politica de cancelacion, requiere GEMINI_API_KEY)",
           "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept-Language",
-                "value": "{{lang}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{physioToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/notifications",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "notifications"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "US13 Notificaciones del paciente",
-          "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [
               {
                 "key": "Content-Type",
@@ -2133,13 +2425,169 @@
                 "value": "Bearer {{patientToken}}"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\": \"¿Cuál es la política de cancelación?\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
-              "raw": "{{baseUrl}}/notifications",
+              "raw": "{{baseUrl}}/assistant/messages",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "notifications"
+                "assistant",
+                "messages"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Pausa para no superar las 15 peticiones por minuto del plan gratuito de Gemini (aiDelayMs).",
+                  "const ms = Number(pm.collectionVariables.get(\"aiDelayMs\") || 0);",
+                  "setTimeout(() => {}, ms);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 200 y respuesta de IA con la regla de 24 horas\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.source).to.eql(\"AI\");\n  pm.expect(r.reply).to.include(\"24\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US17 Consultar dudas al asistente (error: conversación de otro usuario)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "",
+                  "// Setup oculto: una conversacion del paciente (mensaje con respuesta de seguridad, no consume Gemini).",
+                  "(async () => {",
+                  "  const r = await send(\"POST\", \"/assistant/messages\", { message: t(\"¿Qué medicamento tomo?\", \"What medication should I take?\") }, V(\"patientToken\"));",
+                  "  S(\"aiForeignConversationId\", r.conversationId);",
+                  "})().catch(e => console.error(\"setup conversacion ajena:\", e));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 404 y mensaje\", () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().message).to.eql(t(\"La conversación no existe\", \"The conversation does not exist\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{physioToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conversationId\": {{aiForeignConversationId}},\n  \"message\": \"Hola\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assistant/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assistant",
+                "messages"
+              ]
+            },
+            "description": "El paciente abre una conversacion (respuesta fija, sin Gemini) y el fisioterapeuta intenta continuarla: 404. El otro error de US17 (Gemini caido -> 503) solo se puede simular en AssistantControllerTest."
+          }
+        },
+        {
+          "name": "US17 Consultar dudas al asistente (alternativo: no da indicaciones medicas)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{patientToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\": \"¿Qué medicamento tomo?\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assistant/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assistant",
+                "messages"
               ]
             },
             "description": ""
@@ -2150,34 +2598,958 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 200 y respuesta de seguridad\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.source).to.eql(\"SAFETY\");\n  pm.expect(r.reply).to.include(t(\"No doy indicaciones médicas\", \"I do not give medical advice\"));\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US18 Recomendación de especialista (exitoso: 3 de columna por experiencia, requiere GEMINI_API_KEY)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "",
+                  "// Setup oculto: 3 fisioterapeutas de columna con mucha experiencia para que encabecen la busqueda.",
+                  "(async () => {",
+                  "  S(\"aiBackPainMessage\", t(\"Me duele la espalda baja desde hace una semana, ¿con quién me atiendo?\",",
+                  "    \"My lower back has been sore for a week, who should I see?\"));",
+                  "  // Nombres sin numeros: Gemini los copia tal cual, pero tiende a quitar sufijos numericos.",
+                  "  for (const [i, name, years] of [[1, \"Lucía Paredes\", 45], [2, \"Jorge Salinas\", 44], [3, \"Rosa Quispe\", 43]]) {",
+                  "    await send(\"POST\", \"/auth/sign-up/physiotherapist\", {",
+                  "      fullName: name, email: \"fisio.columna\" + i + \".\" + V(\"runId\") + \"@gmail.com\",",
+                  "      password: \"Fisio2026*\", phone: \"987654321\", licenseNumber: \"CL\" + i + V(\"runId\"), specialty: \"COLUMNA_POSTURA\",",
+                  "      yearsOfExperience: years, description: \"Especialista en columna y postura\" });",
+                  "  }",
+                  "  await pace();",
+                  "})().catch(e => console.error(\"setup fisios de columna:\", e));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "",
+                  "pm.test(\"Status 200 y respuesta de IA\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().source).to.eql(\"AI\");",
+                  "});",
+                  "// Los 3 primeros de la busqueda real son los que debe recomendar el asistente.",
+                  "send(\"GET\", \"/physiotherapists?specialty=COLUMNA_POSTURA\", null, V(\"patientToken\")).then(search => {",
+                  "  const reply = pm.response.json().reply;",
+                  "  const top = [...new Set(search.items.slice(0, 3).map(p => p.fullName))];",
+                  "  pm.test(\"Recomienda a los especialistas de columna con mas experiencia\", () => {",
+                  "    pm.expect(top.filter(name => reply.includes(name)).length).to.be.at.least(Math.min(2, top.length));",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{patientToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"{{aiBackPainMessage}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assistant/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assistant",
+                "messages"
+              ]
+            },
+            "description": "Gemini llama a searchPhysiotherapists(COLUMNA_POSTURA). Se verifica contra GET /physiotherapists que la respuesta nombre a los fisioterapeutas con mas experiencia, sin depender del texto exacto."
+          }
+        },
+        {
+          "name": "US18 Recomendacion de especialista (error: molestia sin detalle)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{patientToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\": \"Me duele\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assistant/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assistant",
+                "messages"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 200 y pregunta parte del cuerpo y desde cuando\", () => {\n  pm.response.to.have.status(200);\n  pm.expect(pm.response.json().reply).to.eql(t(\"¿En qué parte del cuerpo te duele y desde cuándo?\", \"Where in your body does it hurt and since when?\"));\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US18 Recomendacion de especialista (alternativo: sintomas de emergencia)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{patientToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\": \"Tengo dolor en el pecho y falta de aire\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assistant/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assistant",
+                "messages"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 200 y recomienda acudir a emergencias\", () => {\n  pm.response.to.have.status(200);\n  const r = pm.response.json();\n  pm.expect(r.source).to.eql(\"SAFETY\");\n  pm.expect(r.reply.toLowerCase()).to.include(t(\"emergencia\", \"emergency\"));\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "US19 Reservar mediante el asistente (error: día sin horarios, propone el siguiente)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "",
+                  "// Setup oculto: fisioterapeuta con 3 bloques (14:00-17:00) en aiDate y un paciente con plan activo.",
+                  "// El dia anterior (aiDatePrev) no tiene bloques. aiDate cae entre el 20 y el 27 para no confundir dia con hora.",
+                  "(async () => {",
+                  "  const d = new Date();",
+                  "  d.setDate(d.getDate() + 10);",
+                  "  while (d.getDate() < 20 || d.getDate() > 27) d.setDate(d.getDate() + 1);",
+                  "  const prev = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);",
+                  "  S(\"aiDate\", dstr(d));",
+                  "  S(\"aiDatePrev\", dstr(prev));",
+                  "  const physio = await send(\"POST\", \"/auth/sign-up/physiotherapist\", {",
+                  "    fullName: \"Fisio Asistente Reserva\", email: \"fisio.ia19.\" + V(\"runId\") + \"@gmail.com\", password: \"Fisio2026*\",",
+                  "    phone: \"987654321\", licenseNumber: \"IA19\" + V(\"runId\"), specialty: \"DEPORTIVA\",",
+                  "    yearsOfExperience: 6, description: \"Fisioterapeuta para las reservas con el asistente\" });",
+                  "  S(\"aiPhysio19Token\", physio.token);",
+                  "  await send(\"POST\", \"/physiotherapists/me/slots\", {",
+                  "    date: dstr(d), startTime: \"14:00\", endTime: \"17:00\", durationMinutes: 60 }, physio.token);",
+                  "  const patient = await send(\"POST\", \"/auth/sign-up/patient\", {",
+                  "    fullName: \"Paciente Asistente Reserva\", email: \"paciente.ia19.\" + V(\"runId\") + \"@gmail.com\",",
+                  "    password: \"Fisio2026*\", phone: \"987654321\" });",
+                  "  S(\"aiPatient19Token\", patient.token);",
+                  "  await send(\"POST\", \"/treatment-plans\", { physiotherapistId: physio.profileId,",
+                  "    diagnosis: \"Esguince de tobillo\", totalSessions: 4, frequencyPerWeek: 2 }, patient.token);",
+                  "  S(\"aiMessage19Empty\", t(\"Quiero reservar una sesión el \" + dstr(prev) + \" por la mañana\",",
+                  "    \"I want to book a session on \" + dstr(prev) + \" in the morning\"));",
+                  "  await pace();",
+                  "})().catch(e => console.error(\"setup US19:\", e));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "const agenda = (token, date) => send(\"GET\", \"/physiotherapists/me/agenda?date=\" + date, null, token)",
+                  "  .then(a => Object.fromEntries(a.items.map(i => [String(i.startTime).slice(11, 16), i])));",
+                  "",
+                  "pm.test(\"Status 200 y respuesta de IA\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().source).to.eql(\"AI\");",
+                  "});",
+                  "pm.test(\"Propone el dia siguiente con horarios\", () => {",
+                  "  const day = String(Number(V(\"aiDate\").slice(8, 10)));",
+                  "  pm.expect(pm.response.json().reply).to.match(new RegExp(\"\\\\b0?\" + day + \"\\\\b\"));",
+                  "});",
+                  "agenda(V(\"aiPhysio19Token\"), V(\"aiDate\")).then(a => {",
+                  "  pm.test(\"No reserva nada sin confirmacion\", () => {",
+                  "    pm.expect(Object.values(a).every(i => i.status === \"FREE\")).to.eql(true);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aiPatient19Token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"{{aiMessage19Empty}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assistant/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assistant",
+                "messages"
+              ]
+            },
+            "description": "El paciente pide un dia sin bloques; el asistente avisa y propone los del dia siguiente. Se verifica que nombra ese dia y que no reservo nada sin confirmacion."
+          }
+        },
+        {
+          "name": "US19 Reservar mediante el asistente (alternativo: elige \"el segundo\" sin repetir la fecha)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "",
+                  "(async () => {",
+                  "  await pace();",
+                  "  const r = await send(\"POST\", \"/assistant/messages\", { message: t(\"Quiero reservar una sesión el \" + V(\"aiDate\") + \" por la tarde\",",
+                  "    \"I want to book a session on \" + V(\"aiDate\") + \" in the afternoon\") }, V(\"aiPatient19Token\"));",
+                  "  S(\"aiConversation19\", r.conversationId);",
+                  "  S(\"aiMessage19Second\", t(\"el segundo\", \"the second one\"));",
+                  "  await pace();",
+                  "})().catch(e => console.error(\"setup US19 opciones:\", e));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "const agenda = (token, date) => send(\"GET\", \"/physiotherapists/me/agenda?date=\" + date, null, token)",
+                  "  .then(a => Object.fromEntries(a.items.map(i => [String(i.startTime).slice(11, 16), i])));",
+                  "",
+                  "pm.test(\"Status 200, misma conversacion y respuesta de IA\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const r = pm.response.json();",
+                  "  pm.expect(r.source).to.eql(\"AI\");",
+                  "  pm.expect(r.conversationId).to.eql(Number(V(\"aiConversation19\")));",
+                  "});",
+                  "pm.test(\"Entiende que la segunda opcion es 15:00\", () => {",
+                  "  pm.expect(pm.response.json().reply).to.match(/15[:.]00|\\b3(:00)?\\s?p\\.?\\s?m/i);",
+                  "});",
+                  "agenda(V(\"aiPhysio19Token\"), V(\"aiDate\")).then(a => {",
+                  "  pm.test(\"Pide confirmacion antes de reservar\", () => {",
+                  "    pm.expect(Object.values(a).every(i => i.status === \"FREE\")).to.eql(true);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aiPatient19Token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conversationId\": {{aiConversation19}},\n  \"message\": \"{{aiMessage19Second}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assistant/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assistant",
+                "messages"
+              ]
+            },
+            "description": "Primer mensaje oculto: pide la tarde de aiDate y el asistente lista 14:00, 15:00 y 16:00. Este mensaje responde \"el segundo\" en la misma conversacion: debe entender que es 15:00 y pedir confirmacion antes de reservar."
+          }
+        },
+        {
+          "name": "US19 Reservar mediante el asistente (exitoso: confirma y reserva, requiere GEMINI_API_KEY)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "",
+                  "S(\"aiMessageConfirm\", t(\"Sí, confirmo\", \"Yes, I confirm\"));",
+                  "pace();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "const agenda = (token, date) => send(\"GET\", \"/physiotherapists/me/agenda?date=\" + date, null, token)",
+                  "  .then(a => Object.fromEntries(a.items.map(i => [String(i.startTime).slice(11, 16), i])));",
+                  "",
+                  "pm.test(\"Status 200 y respuesta de IA\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().source).to.eql(\"AI\");",
+                  "});",
+                  "agenda(V(\"aiPhysio19Token\"), V(\"aiDate\")).then(a => {",
+                  "  pm.test(\"Reserva el bloque elegido (15:00) y deja libres los demas\", () => {",
+                  "    pm.expect(a[\"15:00\"].status).to.eql(\"BOOKED\");",
+                  "    pm.expect(a[\"15:00\"].patientName).to.eql(\"Paciente Asistente Reserva\");",
+                  "    pm.expect(a[\"15:00\"].sessionStatus).to.eql(\"RESERVED\");",
+                  "    pm.expect(a[\"14:00\"].status).to.eql(\"FREE\");",
+                  "    pm.expect(a[\"16:00\"].status).to.eql(\"FREE\");",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aiPatient19Token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conversationId\": {{aiConversation19}},\n  \"message\": \"{{aiMessageConfirm}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assistant/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assistant",
+                "messages"
+              ]
+            },
+            "description": "El paciente confirma en la misma conversacion. Se verifica en la agenda del fisioterapeuta que quedo reservado el bloque de las 15:00 (la opcion elegida) y que los otros siguen libres."
+          }
+        },
+        {
+          "name": "US20 Reprogramar mediante el asistente (error: horario ocupado, ofrece 2 cercanos)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "",
+                  "// Setup oculto: bloques 09:00-13:00 en aiDate; el paciente reserva las 09:00 y otro paciente las 11:00.",
+                  "(async () => {",
+                  "  const physio = await send(\"POST\", \"/auth/sign-up/physiotherapist\", {",
+                  "    fullName: \"Fisio Asistente Reprogramar\", email: \"fisio.ia20.\" + V(\"runId\") + \"@gmail.com\", password: \"Fisio2026*\",",
+                  "    phone: \"987654321\", licenseNumber: \"IA20\" + V(\"runId\"), specialty: \"GERIATRICA\",",
+                  "    yearsOfExperience: 9, description: \"Fisioterapeuta para reprogramar con el asistente\" });",
+                  "  S(\"aiPhysio20Token\", physio.token);",
+                  "  const slots = await send(\"POST\", \"/physiotherapists/me/slots\", {",
+                  "    date: V(\"aiDate\"), startTime: \"09:00\", endTime: \"13:00\", durationMinutes: 60 }, physio.token);",
+                  "  const book = async (name, key, slot) => {",
+                  "    const p = await send(\"POST\", \"/auth/sign-up/patient\", { fullName: name,",
+                  "      email: key + \".\" + V(\"runId\") + \"@gmail.com\", password: \"Fisio2026*\", phone: \"987654321\" });",
+                  "    const plan = await send(\"POST\", \"/treatment-plans\", { physiotherapistId: physio.profileId,",
+                  "      diagnosis: \"Rehabilitacion de rodilla\", totalSessions: 6, frequencyPerWeek: 2 }, p.token);",
+                  "    await send(\"POST\", \"/treatment-plans/\" + plan.id + \"/sessions\", { slotId: slot.id }, p.token);",
+                  "    return p.token;",
+                  "  };",
+                  "  S(\"aiPatient20Token\", await book(\"Paciente Asistente Reprogramar\", \"paciente.ia20\", slots[0]));",
+                  "  await book(\"Paciente Ocupa Once\", \"paciente.ia20b\", slots[2]);",
+                  "  S(\"aiMessage20Taken\", t(\"Quiero mover mi sesión del \" + V(\"aiDate\") + \" a las 11:00 del mismo día\",",
+                  "    \"I want to move my session on \" + V(\"aiDate\") + \" to 11:00 the same day\"));",
+                  "  await pace();",
+                  "})().catch(e => console.error(\"setup US20:\", e));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "const agenda = (token, date) => send(\"GET\", \"/physiotherapists/me/agenda?date=\" + date, null, token)",
+                  "  .then(a => Object.fromEntries(a.items.map(i => [String(i.startTime).slice(11, 16), i])));",
+                  "",
+                  "pm.test(\"Status 200 y respuesta de IA\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().source).to.eql(\"AI\");",
+                  "});",
+                  "pm.test(\"Ofrece los 2 horarios libres mas cercanos (10:00 y 12:00)\", () => {",
+                  "  const reply = pm.response.json().reply;",
+                  "  pm.expect(reply).to.match(/\\b10[:.]00\\b|\\b10\\s?a\\.?\\s?m/i);",
+                  "  pm.expect(reply).to.match(/\\b12[:.]00\\b|\\b12(:00)?\\s?p\\.?\\s?m/i);",
+                  "});",
+                  "agenda(V(\"aiPhysio20Token\"), V(\"aiDate\")).then(a => {",
+                  "  pm.test(\"No mueve la sesion\", () => {",
+                  "    pm.expect(a[\"09:00\"].patientName).to.eql(\"Paciente Asistente Reprogramar\");",
+                  "    pm.expect(a[\"11:00\"].patientName).to.eql(\"Paciente Ocupa Once\");",
+                  "    pm.expect(a[\"10:00\"].status).to.eql(\"FREE\");",
+                  "    pm.expect(a[\"12:00\"].status).to.eql(\"FREE\");",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aiPatient20Token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"{{aiMessage20Taken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assistant/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assistant",
+                "messages"
+              ]
+            },
+            "description": "El paciente tiene sesion a las 09:00 y pide moverla a las 11:00, que ya ocupo otro paciente. El asistente debe ofrecer los 2 libres mas cercanos (10:00 y 12:00) y no mover nada."
+          }
+        },
+        {
+          "name": "US20 Reprogramar mediante el asistente (exitoso: confirma y mueve la sesión, requiere GEMINI_API_KEY)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "",
+                  "(async () => {",
+                  "  await pace();",
+                  "  const r = await send(\"POST\", \"/assistant/messages\", { message: t(\"Quiero reprogramar mi sesión del \" + V(\"aiDate\") + \" a las 10:00 del mismo día\",",
+                  "    \"I want to reschedule my session on \" + V(\"aiDate\") + \" to 10:00 the same day\") }, V(\"aiPatient20Token\"));",
+                  "  S(\"aiConversation20\", r.conversationId);",
+                  "  S(\"aiMessageConfirm\", t(\"Sí, confirmo\", \"Yes, I confirm\"));",
+                  "  await pace();",
+                  "})().catch(e => console.error(\"setup US20 confirmar:\", e));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "const agenda = (token, date) => send(\"GET\", \"/physiotherapists/me/agenda?date=\" + date, null, token)",
+                  "  .then(a => Object.fromEntries(a.items.map(i => [String(i.startTime).slice(11, 16), i])));",
+                  "",
+                  "pm.test(\"Status 200 y respuesta de IA\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().source).to.eql(\"AI\");",
+                  "});",
+                  "agenda(V(\"aiPhysio20Token\"), V(\"aiDate\")).then(a => {",
+                  "  pm.test(\"La sesion pasa a las 10:00 y libera las 09:00\", () => {",
+                  "    pm.expect(a[\"10:00\"].status).to.eql(\"BOOKED\");",
+                  "    pm.expect(a[\"10:00\"].patientName).to.eql(\"Paciente Asistente Reprogramar\");",
+                  "    pm.expect(a[\"10:00\"].sessionStatus).to.eql(\"RESERVED\");",
+                  "    pm.expect(a[\"09:00\"].status).to.eql(\"FREE\");",
+                  "    pm.expect(a[\"11:00\"].patientName).to.eql(\"Paciente Ocupa Once\");",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aiPatient20Token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conversationId\": {{aiConversation20}},\n  \"message\": \"{{aiMessageConfirm}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assistant/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assistant",
+                "messages"
+              ]
+            },
+            "description": "Primer mensaje oculto: pide mover la sesion de las 09:00 a las 10:00 (libre). Este mensaje confirma; se verifica en la agenda que la sesion paso a las 10:00 y que las 09:00 quedo libre."
+          }
+        },
+        {
+          "name": "US20 Reprogramar mediante el asistente (alternativo: no tiene sesiones)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const send = (method, path, obj, token) => new Promise((resolve, reject) => {",
+                  "  const header = { \"Content-Type\": \"application/json\", \"Accept-Language\": pm.collectionVariables.get(\"lang\") || \"es-419\" };",
+                  "  if (token) header.Authorization = \"Bearer \" + token;",
+                  "  pm.sendRequest({ url: pm.collectionVariables.get(\"baseUrl\") + path, method, header,",
+                  "    body: obj ? { mode: \"raw\", raw: JSON.stringify(obj), options: { raw: { language: \"json\" } } } : undefined },",
+                  "  (err, res) => err ? reject(err) : resolve(res.json()));",
+                  "});",
+                  "const V = k => pm.collectionVariables.get(k);",
+                  "const S = (k, v) => pm.collectionVariables.set(k, v);",
+                  "const pad = n => String(n).padStart(2, \"0\");",
+                  "const dstr = d => d.getFullYear() + \"-\" + pad(d.getMonth() + 1) + \"-\" + pad(d.getDate());",
+                  "const t = (es, en) => ((pm.variables.get(\"lang\") || V(\"lang\")) === \"en-US\" ? en : es);",
+                  "// Pausa antes de cada mensaje que va a Gemini: el plan gratuito permite 15 peticiones por minuto (aiDelayMs).",
+                  "const pace = () => new Promise(r => setTimeout(r, Number(V(\"aiDelayMs\") || 0)));",
+                  "",
+                  "(async () => {",
+                  "  const p = await send(\"POST\", \"/auth/sign-up/patient\", { fullName: \"Paciente Asistente Sin Sesiones\",",
+                  "    email: \"paciente.ia20c.\" + V(\"runId\") + \"@gmail.com\", password: \"Fisio2026*\", phone: \"987654321\" });",
+                  "  S(\"aiPatientNoSessionsToken\", p.token);",
+                  "  S(\"aiMessage20None\", t(\"Quiero reprogramar mi sesión\", \"I want to reschedule my session\"));",
+                  "  await pace();",
+                  "})().catch(e => console.error(\"setup US20 sin sesiones:\", e));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 200 y respuesta de IA\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().source).to.eql(\"AI\");",
+                  "});",
+                  "pm.test(\"Dice que no tiene sesiones para reprogramar\", () => {",
+                  "  pm.expect(pm.response.json().reply).to.match(t(/no tienes.*sesi/i, /(no|don'?t|do not)\\b.*session/i));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aiPatientNoSessionsToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"{{aiMessage20None}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assistant/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assistant",
+                "messages"
+              ]
+            },
+            "description": "Paciente recien registrado, sin sesiones: el asistente debe decir que no hay nada que reprogramar."
+          }
+        },
+        {
+          "name": "Asistente (validacion: mensaje vacio)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept-Language",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{patientToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\": \" \"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assistant/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assistant",
+                "messages"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = (es, en) => (pm.variables.get(\"lang\") === \"en-US\" ? en : es);",
+                  "pm.test(\"Status 400\", () => {\n  pm.response.to.have.status(400);\n});"
                 ]
               }
             }
           ]
         }
       ]
-    }
-  ],
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          "// Genera datos únicos para poder correr la colección varias veces",
-          "if (!pm.collectionVariables.get(\"runId\")) {",
-          "  const id = Date.now().toString().slice(-6);",
-          "  pm.collectionVariables.set(\"runId\", id);",
-          "  pm.collectionVariables.set(\"patientEmail\", \"carlos.mendoza.\" + id + \"@gmail.com\");",
-          "  pm.collectionVariables.set(\"physioEmail\", \"mariana.rojas.\" + id + \"@gmail.com\");",
-          "  pm.collectionVariables.set(\"licenseNumber\", \"C\" + id);",
-          "  const d = new Date();",
-          "  d.setDate(d.getDate() + 7);",
-          "  pm.collectionVariables.set(\"slotDate\", d.toISOString().slice(0, 10));",
-          "}"
-        ]
-      }
     }
   ],
   "variable": [
@@ -2194,68 +3566,9 @@
       "value": ""
     },
     {
-      "key": "patientEmail",
-      "value": ""
-    },
-    {
-      "key": "physioEmail",
-      "value": ""
-    },
-    {
-      "key": "licenseNumber",
-      "value": ""
-    },
-    {
-      "key": "slotDate",
-      "value": ""
-    },
-    {
-      "key": "patientToken",
-      "value": ""
-    },
-    {
-      "key": "physioToken",
-      "value": ""
-    },
-    {
-      "key": "patientId",
-      "value": ""
-    },
-    {
-      "key": "physioId",
-      "value": ""
-    },
-    {
-      "key": "slotId1",
-      "value": ""
-    },
-    {
-      "key": "slotId2",
-      "value": ""
-    },
-    {
-      "key": "slotId3",
-      "value": ""
-    },
-    {
-      "key": "planId",
-      "value": ""
-    },
-    {
-      "key": "sessionId",
-      "value": ""
-    },
-    {
-      "key": "sessionToCancelId",
-      "value": ""
-    },
-    {
-      "key": "newPatientToken",
-      "value": ""
-    },
-    {
-      "key": "newPhysioToken",
-      "value": ""
+      "key": "aiDelayMs",
+      "value": "20000",
+      "description": "Pausa (ms) antes de cada mensaje al asistente. 20000 respeta el plan gratuito de Gemini; 0 con key de pago."
     }
   ]
 }
