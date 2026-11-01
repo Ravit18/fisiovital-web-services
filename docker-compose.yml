@@ -21,6 +21,11 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/fisiovital
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
+      # Se leen del .env de esta carpeta (si no existe, quedan vacias)
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
     ports:
       - "8080:8080"
 
