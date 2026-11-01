@@ -19,9 +19,8 @@ PostgreSQL, Spring AI (Google Gemini) y Swagger (OpenAPI). Cubre las **20 User S
 - **Colección de Postman**: los 60 escenarios de US01–US20 (71 aserciones), **71/71 OK** en español y en inglés
   contra la app levantada. Los del asistente usan Gemini real.
 - Seguridad con JWT y roles, i18n (es-419 / en-US), concurrencia con `@Version`, recordatorios con `@Scheduled`.
-- [Diagramas](docs/diagrams/) en Mermaid, alineados con el código: **modelo C4 completo** (contexto, contenedores, componentes y código), clases y base de datos.
-- Checklist de cierre en [`docs/RESULTADO_SPRINT1.md`](docs/RESULTADO_SPRINT1.md), reparto en
-  [`docs/REPARTO_TAREAS.md`](docs/REPARTO_TAREAS.md) y [`CHANGELOG.md`](CHANGELOG.md).
+- [Diagramas](docs/diagrams/) en Mermaid, alineados con el código: **modelo C4 completo** (contexto, contenedores, componentes y código).
+- Checklist de cierre en [`docs/RESULTADO_SPRINT1.md`](docs/RESULTADO_SPRINT1.md) y [`CHANGELOG.md`](CHANGELOG.md).
 
 ### 🔧 Corregido según la retroalimentación del profesor
 
@@ -32,7 +31,7 @@ PostgreSQL, Spring AI (Google Gemini) y Swagger (OpenAPI). Cubre las **20 User S
 | 5 | US14 sin manejo de carga > 2 min (T23 marcada Done sin implementar) | Historial paginado y timeout configurable (`QUERY_TIMEOUT_MS`) que responde 503 con "Por favor inténtalo más tarde", como pide el informe; probado con test |
 | 6 | Endpoints de notas clínicas y progreso responden 500 | Se eliminó el módulo `clinical/` y `ProgressResource`; las rutas inexistentes responden 404, nunca 500 |
 | — | Errores de usuario que caían en 500 | `GlobalExceptionHandler` mapea 400, 403, 404, 405, 409, 422 y 503 |
-| 1 | Falta el diagrama de Componentes; `ClinicalNote` en clases y BD | Modelo C4 completo (4 niveles) y diagramas de clases y BD sin `ClinicalNote`, con trazabilidad a las US |
+| 1 | Falta el diagrama de Componentes; `ClinicalNote` en clases y BD | Modelo C4 completo (4 niveles) sin `ClinicalNote`, con trazabilidad a las US |
 | 6 | Tabla 8 no coincide con el código | Tabla real de endpoints en `docs/RESULTADO_SPRINT1.md` |
 | — | Rutas de US14–US16 distintas al plan | Ahora `GET /api/v1/appointments/me` y `GET /api/v1/appointments/physiotherapist/me?patientName=` |
 | — | Controller con lógica de negocio | La búsqueda de especialistas pasó a `PhysiotherapistSearchService` |
@@ -50,9 +49,7 @@ Además: CORS configurable para Angular, intervalo del recordatorio configurable
 - Presentación renombrada a `keynote_1ACC0236-20262.pptx`.
 - **Trabajo colaborativo** (observación 3): que cada integrante suba commits de implementación desde su cuenta.
 - Subir la rama al repositorio oficial, PR a `develop`, `release/1.0.0` y release `v1.0.0` en GitHub.
-- Checklist completo de la TB2 por criterio de la rúbrica: [`docs/CHECKLIST_TB2.md`](docs/CHECKLIST_TB2.md).
-- **TB3 (Sprint 2)**: Web App en Angular, Landing Page y mock-ups en Figma, integrados con este backend
-  ([`docs/PLAN_TB3.md`](docs/PLAN_TB3.md)).
+- **TB3 (Sprint 2)**: Web App en Angular, Landing Page y mock-ups en Figma, integrados con este backend.
 - **TB4 (Sprint 3)**: CI/CD con GitHub Actions y despliegue en la nube.
 
 ## Requisitos
