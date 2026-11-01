@@ -4,7 +4,25 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Unreleased]
 
+### Changed
+- Arquitectura en capas según el curso: una carpeta por capa (`controller/`, `service/`, `mapper/`, `repository/`,
+  `model/`, `dto/`, además de `security/`, `config/` y `exception/`). Los controllers reciben `*RequestDTO` y
+  devuelven `*ResponseDTO`; los services convierten con mappers de MapStruct y la API nunca expone entidades.
+- `src/test` sigue la misma estructura: `controller/<Módulo>ControllerTest` y `exception/GlobalExceptionHandlerTest`
+  (85 tests).
+- CORS: en local se acepta cualquier puerto de `localhost`; en la nube se fijan los dominios con
+  `CORS_ALLOWED_ORIGINS`.
+- Diagrama C4 de componentes y documentación actualizados a la arquitectura en capas.
+
+### Fixed
+- US16: buscar un paciente por nombre devolvía también sus sesiones con otros fisioterapeutas. Ahora solo muestra
+  las del fisioterapeuta que consulta (test de regresión incluido).
+
 ### Added
+- Ver, editar y eliminar un plan de tratamiento: `GET`, `PUT` y `DELETE /api/v1/treatment-plans/{planId}`
+  (9 tests).
+- `scripts/seed-demo.ps1`: carga por la API fisioterapeutas, pacientes, horarios y citas de demostración para la
+  Web App.
 - Asistente conversacional con IA para US17–US20 (`POST /api/v1/assistant/messages`) con Spring AI 1.1 y
   Google Gemini (`gemini-3.5-flash-lite`, plan gratuito): resuelve dudas, recomienda especialistas, reserva y
   reprograma sesiones mediante tool calling sobre los services existentes.

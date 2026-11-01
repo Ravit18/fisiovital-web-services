@@ -3,54 +3,50 @@
 API RESTful de FisioVital, construida con Spring Boot 3.5, Java 21, Spring Data JPA, Spring Security + JWT,
 PostgreSQL, Spring AI (Google Gemini) y Swagger (OpenAPI). Cubre las **20 User Stories** del informe (US01 a US20).
 
-## Estado del proyecto (actualizado 2026-10-21)
-
 > Para instalarlo en otra PC, sigue en orden las secciones **Requisitos**, **0. Configurar variables locales**,
 > **1. Crear la base de datos** y **2. Abrir y ejecutar en IntelliJ IDEA**.
 
-### ✅ Listo
+## Qué incluye
 
-- **20/20 historias** (US01–US20), cada una con sus 3 escenarios (exitoso, error y alternativo).
-- **Asistente con IA (US17–US20)** con Spring AI y Google Gemini (plan gratuito): resuelve dudas, recomienda
-  especialistas, reserva y reprograma sesiones conversando. Probado en vivo con Gemini real.
-- **Recordatorio por correo (US13)** con Gmail, listo para pegar las credenciales en `.env`.
-- **75 tests de integración** en verde (`./mvnw test`, H2 en modo PostgreSQL; Gemini simulado en los tests, no
-  necesitan `.env` ni base de datos).
-- **Colección de Postman**: los 60 escenarios de US01–US20 (71 aserciones), **71/71 OK** en español y en inglés
-  contra la app levantada. Los del asistente usan Gemini real.
-- Seguridad con JWT y roles, i18n (es-419 / en-US), concurrencia con `@Version`, recordatorios con `@Scheduled`.
-- [Diagramas](docs/diagrams/) en Mermaid, alineados con el código: **modelo C4 completo** (contexto, contenedores, componentes y código).
-- Checklist de cierre en [`docs/RESULTADO_SPRINT1.md`](docs/RESULTADO_SPRINT1.md) y [`CHANGELOG.md`](CHANGELOG.md).
+- **20 historias de usuario** (US01–US20), cada una con sus escenarios exitoso, de error y alternativo.
+- **Arquitectura en capas** Controller → Service → Repository, con DTOs (`*RequestDTO` / `*ResponseDTO`) y
+  mappers de MapStruct. La API nunca devuelve entidades (ver [Arquitectura en capas](#arquitectura-en-capas)).
+- **Asistente con IA (US17–US20)** con Spring AI y Google Gemini: resuelve dudas, recomienda especialistas y
+  reserva o reprograma sesiones conversando, reutilizando las mismas reglas de negocio.
+- **Recordatorio automático (US13)** 24 horas antes de cada sesión, por correo (Gmail) y como notificación.
+- Seguridad con **JWT y roles** (paciente / fisioterapeuta), mensajes en **dos idiomas** (es-419 / en-US según
+  `Accept-Language`), control de concurrencia con `@Version` y errores siempre con su código HTTP correcto.
+- **85 tests de integración** en verde y una **colección de Postman** con 71 aserciones (ver [Pruebas](#pruebas)).
 
-### 🔧 Corregido según la retroalimentación del profesor
+## Documentación
+
+| Documento | Contenido |
+|---|---|
+| [`docs/RESULTADO_SPRINT1.md`](docs/RESULTADO_SPRINT1.md) | Resultado del Sprint 1: estado de cada US, tests que la cubren y tabla real de endpoints |
+| [C4 · Nivel 1 — Contexto](docs/diagrams/c4-1-contexto.md) | Paciente, fisioterapeuta, FisioVital y los sistemas externos (SMTP, Gemini) |
+| [C4 · Nivel 2 — Contenedores](docs/diagrams/c4-2-contenedores.md) | Web App (Angular), Web Services (Spring Boot) y PostgreSQL |
+| [C4 · Nivel 3 — Componentes](docs/diagrams/c4-3-componentes.md) | Capas controller → service (+ mapper) → repository de cada módulo |
+| [C4 · Nivel 4 — Código](docs/diagrams/c4-4-codigo.md) | Clases que implementan reprogramar y cancelar una sesión (US11–US12) |
+| [`CHANGELOG.md`](CHANGELOG.md) | Cambios de cada versión |
+| Swagger | `http://localhost:8080/swagger-ui.html` con la app levantada: todos los endpoints con ejemplos |
+
+Los diagramas están en Mermaid, así que GitHub los dibuja directamente al abrir cada archivo.
+
+## Correcciones de la retroalimentación (TB2)
 
 | # | Observación | Qué se hizo |
 |---|---|---|
+| — | Arquitectura organizada por bounded contexts (DDD) en lugar de capas | Reorganizada en capas Controller → Service → Repository, una carpeta por capa, con DTOs y MapStruct; los tests siguen la misma estructura |
 | 5 | US04 sin el mensaje "No hay especialistas disponibles" | La búsqueda responde `{items, message}` con el mensaje i18n cuando no hay resultados |
 | 5 | US05 sin el mensaje "Sin disponibilidad por ahora" | El perfil incluye `availabilityMessage` cuando no hay horarios |
 | 5 | US14 sin manejo de carga > 2 min (T23 marcada Done sin implementar) | Historial paginado y timeout configurable (`QUERY_TIMEOUT_MS`) que responde 503 con "Por favor inténtalo más tarde", como pide el informe; probado con test |
-| 6 | Endpoints de notas clínicas y progreso responden 500 | Se eliminó el módulo `clinical/` y `ProgressResource`; las rutas inexistentes responden 404, nunca 500 |
-| — | Errores de usuario que caían en 500 | `GlobalExceptionHandler` mapea 400, 403, 404, 405, 409, 422 y 503 |
-| 1 | Falta el diagrama de Componentes; `ClinicalNote` en clases y BD | Modelo C4 completo (4 niveles) sin `ClinicalNote`, con trazabilidad a las US |
+| 6 | Endpoints de notas clínicas y progreso responden 500 | Se eliminaron las notas clínicas y el progreso; las rutas inexistentes responden 404, nunca 500 |
+| — | Errores de usuario que caían en 500 | `GlobalExceptionHandler` mapea 400, 401, 403, 404, 405, 409, 422, 423 y 503 |
+| 1 | Falta el diagrama de Componentes; `ClinicalNote` en los diagramas | Modelo C4 completo (4 niveles) sin `ClinicalNote`, con trazabilidad a las US |
 | 6 | Tabla 8 no coincide con el código | Tabla real de endpoints en `docs/RESULTADO_SPRINT1.md` |
 | — | Rutas de US14–US16 distintas al plan | Ahora `GET /api/v1/appointments/me` y `GET /api/v1/appointments/physiotherapist/me?patientName=` |
-| — | Controller con lógica de negocio | La búsqueda de especialistas pasó a `PhysiotherapistSearchService` |
-| 7 | No hay release v1.0.0 | `CHANGELOG.md` listo; falta publicar el tag (ver pendientes) |
-
-Además: CORS configurable para Angular, intervalo del recordatorio configurable, ejemplos en Swagger y README actualizado.
-
-### ⏳ Pendiente
-
-- **Credenciales locales**: pegar la contraseña de aplicación de Gmail en `.env` (ver "Correo de recordatorios").
-- **Informe** (lo corrige el equipo): Tabla 8, Development Evidence y Student Outcome sin notas clínicas,
-  Story Points (47 en el Sprint, 68 en el Product Backlog), conclusión 4, fecha de la versión TB2, APA en
-  la bibliografía de Trello y capturas (Trello, Pull Requests, Contributors). El informe ubica US17–US20 en el
-  Sprint 3: ya están implementadas, así que conviene reflejarlo.
-- Presentación renombrada a `keynote_1ACC0236-20262.pptx`.
-- **Trabajo colaborativo** (observación 3): que cada integrante suba commits de implementación desde su cuenta.
-- Subir la rama al repositorio oficial, PR a `develop`, `release/1.0.0` y release `v1.0.0` en GitHub.
-- **TB3 (Sprint 2)**: Web App en Angular, Landing Page y mock-ups en Figma, integrados con este backend.
-- **TB4 (Sprint 3)**: CI/CD con GitHub Actions y despliegue en la nube.
+| — | Controller con lógica de negocio | Toda la lógica está en `service/`; los controllers solo reciben el DTO y delegan |
+| 7 | No hay release v1.0.0 | Versiones registradas en `CHANGELOG.md` para publicar el release `v1.0.0` |
 
 ## Requisitos
 
@@ -172,6 +168,32 @@ Desde la terminal, sin instalar Maven (la primera vez descarga Maven 3.9.16 solo
 ./mvnw spring-boot:run   # Windows: mvnw.cmd spring-boot:run
 ```
 
+## Pruebas
+
+```bash
+./mvnw test   # Windows: mvnw.cmd test  → 85 tests, 0 fallos
+```
+
+Son tests de integración: levantan la aplicación completa con una base H2 en modo PostgreSQL y llaman a los
+endpoints con MockMvc, así que prueban de punta a punta controller, service, mapper, repository, seguridad y
+mensajes i18n. No necesitan `.env` ni PostgreSQL, y Gemini se simula. Cada escenario comprueba el **código HTTP**
+y, en los casos de error y alternativos, el **mensaje traducido**. `src/test` sigue la misma estructura en capas que
+`src/main`:
+
+| Test | Historias | Tests |
+|---|---|---|
+| `controller/AuthControllerTest` | US01–US03 | 10 |
+| `controller/PhysiotherapistControllerTest` | US04–US05 | 8 |
+| `controller/AvailabilityControllerTest` | US06–US07 | 6 |
+| `controller/AgendaControllerTest` | US08 | 3 |
+| `controller/TreatmentPlanControllerTest` | US09–US10 y CRUD del plan | 15 |
+| `controller/SessionControllerTest` | US11–US12 | 6 |
+| `controller/NotificationControllerTest` | US13 | 5 |
+| `controller/AppointmentHistoryControllerTest` | US14–US16 | 9 |
+| `controller/AssistantControllerTest` y `AssistantControllerWithoutKeyTest` | US17–US20 | 17 |
+| `exception/GlobalExceptionHandlerTest` | Errores 404/405/503 (incluye el 503 de US14) | 3 |
+| `SmokeTest` | Arranque, seguridad y creación del esquema de la BD | 3 |
+
 ## 3. Probar con Postman
 
 1. *Import* → selecciona `postman/FisioVital.postman_collection.json`.
@@ -221,6 +243,7 @@ correos son `@example.com`, así que los recordatorios por Gmail no le llegan a 
 | US11 | PATCH | `/api/v1/sessions/{sessionId}/reschedule` | Paciente |
 | US12 | PATCH | `/api/v1/sessions/{sessionId}/cancel` | Paciente |
 | US13 | GET | `/api/v1/notifications` | Autenticado |
+| — | PATCH | `/api/v1/notifications/{id}/read` | Autenticado |
 | US14 | GET | `/api/v1/appointments/me?page=0&size=20` | Paciente |
 | US15 | GET | `/api/v1/appointments/physiotherapist/me` | Fisioterapeuta |
 | US16 | GET | `/api/v1/appointments/physiotherapist/me?patientName=` | Fisioterapeuta |
