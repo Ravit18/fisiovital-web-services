@@ -1,6 +1,6 @@
 package com.healthdev.fisiovital.controller;
 
-import com.healthdev.fisiovital.dto.NotificationResponseDTO;
+import com.healthdev.fisiovital.dto.response.NotificationResponseDTO;
 import com.healthdev.fisiovital.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

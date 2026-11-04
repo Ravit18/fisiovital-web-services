@@ -1,7 +1,7 @@
 package com.healthdev.fisiovital.controller;
 
-import com.healthdev.fisiovital.dto.PublishSlotsRequestDTO;
-import com.healthdev.fisiovital.dto.SlotResponseDTO;
+import com.healthdev.fisiovital.dto.request.PublishSlotsRequestDTO;
+import com.healthdev.fisiovital.dto.response.SlotResponseDTO;
 import com.healthdev.fisiovital.service.AvailabilityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

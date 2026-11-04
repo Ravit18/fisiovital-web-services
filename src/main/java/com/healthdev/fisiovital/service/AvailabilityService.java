@@ -1,8 +1,8 @@
 package com.healthdev.fisiovital.service;
 
-import com.healthdev.fisiovital.dto.AvailabilityResponseDTO;
-import com.healthdev.fisiovital.dto.PublishSlotsRequestDTO;
-import com.healthdev.fisiovital.dto.SlotResponseDTO;
+import com.healthdev.fisiovital.dto.response.AvailabilityResponseDTO;
+import com.healthdev.fisiovital.dto.request.PublishSlotsRequestDTO;
+import com.healthdev.fisiovital.dto.response.SlotResponseDTO;
 import com.healthdev.fisiovital.exception.BusinessException;
 import com.healthdev.fisiovital.mapper.SlotMapper;
 import com.healthdev.fisiovital.model.AvailabilitySlot;

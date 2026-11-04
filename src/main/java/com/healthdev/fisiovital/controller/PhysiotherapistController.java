@@ -1,8 +1,8 @@
 package com.healthdev.fisiovital.controller;
 
-import com.healthdev.fisiovital.dto.AvailabilityResponseDTO;
-import com.healthdev.fisiovital.dto.PhysiotherapistResponseDTO;
-import com.healthdev.fisiovital.dto.PhysiotherapistSearchResponseDTO;
+import com.healthdev.fisiovital.dto.response.AvailabilityResponseDTO;
+import com.healthdev.fisiovital.dto.response.PhysiotherapistResponseDTO;
+import com.healthdev.fisiovital.dto.response.PhysiotherapistSearchResponseDTO;
 import com.healthdev.fisiovital.model.Specialty;
 import com.healthdev.fisiovital.service.AvailabilityService;
 import com.healthdev.fisiovital.service.PhysiotherapistSearchService;

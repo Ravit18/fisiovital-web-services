@@ -1,6 +1,6 @@
 package com.healthdev.fisiovital.mapper;
 
-import com.healthdev.fisiovital.dto.AssistantReplyResponseDTO;
+import com.healthdev.fisiovital.dto.response.AssistantReplyResponseDTO;
 import com.healthdev.fisiovital.model.Conversation;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
