@@ -1,6 +1,6 @@
 package com.healthdev.fisiovital.controller;
 
-import com.healthdev.fisiovital.dto.AppointmentHistoryResponseDTO;
+import com.healthdev.fisiovital.dto.response.AppointmentHistoryResponseDTO;
 import com.healthdev.fisiovital.service.AppointmentHistoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

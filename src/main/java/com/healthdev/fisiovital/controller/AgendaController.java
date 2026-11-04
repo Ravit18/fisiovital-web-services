@@ -1,6 +1,6 @@
 package com.healthdev.fisiovital.controller;
 
-import com.healthdev.fisiovital.dto.AgendaResponseDTO;
+import com.healthdev.fisiovital.dto.response.AgendaResponseDTO;
 import com.healthdev.fisiovital.service.SessionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

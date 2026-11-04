@@ -263,9 +263,11 @@ com.healthdev.fisiovital
 ├── mapper/       Interfaces @Mapper de MapStruct (la implementación se genera al compilar)
 ├── repository/   Interfaces JpaRepository (Query Methods y JPQL con @Query)
 ├── model/        Entidades @Entity (tablas) y enums, con sus reglas de negocio
-├── dto/          Records *RequestDTO (lo que entra) y *ResponseDTO (lo que sale)
+├── dto/
+│   ├── request/  Records *RequestDTO: el JSON que entra (con @Valid)
+│   └── response/ Records *ResponseDTO: el JSON que sale hacia el front
 ├── security/     Spring Security y JWT (SecurityConfig, JwtService, JwtAuthenticationFilter)
-├── config/       i18n, Swagger y el cliente de Gemini
+├── config/       i18n, Swagger, CORS (CorsConfig) y el cliente de Gemini
 └── exception/    BusinessException y GlobalExceptionHandler
 ```
 
@@ -276,7 +278,7 @@ Los módulos del negocio se reconocen por el nombre de la clase: `Auth*` (US01�
 | Capa | Qué hace | Recibe → entrega |
 |---|---|---|
 | `controller/` | Expone la ruta HTTP, valida el JSON (`@Valid`) y llama al service. **Sin lógica** | Petición HTTP → `*ResponseDTO` con su código HTTP |
-| `dto/` | Records `*RequestDTO` / `*ResponseDTO`: la forma del JSON que entra y sale. Nunca se expone una entidad | — |
+| `dto/request/` y `dto/response/` | Records `*RequestDTO` (JSON que entra) y `*ResponseDTO` (JSON que sale). Nunca se expone una entidad | — |
 | `service/` | Lógica del caso de uso: quién es el usuario, qué entidades usar, transacción (`@Transactional`) | `*RequestDTO` → `*ResponseDTO` o `BusinessException` |
 | `mapper/` | `@Mapper` de MapStruct: convierte Entity ↔ DTO sin escribir el mapeo campo por campo | Entity ↔ DTO |
 | `model/` | Entidades JPA **con sus reglas** (por ejemplo `Session.isLateChange`, `AvailabilitySlot.isFree`) | — |

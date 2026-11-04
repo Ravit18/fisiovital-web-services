@@ -1,6 +1,6 @@
 package com.healthdev.fisiovital.mapper;
 
-import com.healthdev.fisiovital.dto.NotificationResponseDTO;
+import com.healthdev.fisiovital.dto.response.NotificationResponseDTO;
 import com.healthdev.fisiovital.model.Notification;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

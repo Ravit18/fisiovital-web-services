@@ -1,6 +1,7 @@
 package com.healthdev.fisiovital.controller;
 
-import com.healthdev.fisiovital.dto.*;
+import com.healthdev.fisiovital.dto.request.*;
+import com.healthdev.fisiovital.dto.response.*;
 import com.healthdev.fisiovital.service.TreatmentPlanService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
