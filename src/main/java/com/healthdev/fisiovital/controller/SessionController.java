@@ -1,7 +1,7 @@
 package com.healthdev.fisiovital.controller;
 
-import com.healthdev.fisiovital.dto.RescheduleSessionRequestDTO;
-import com.healthdev.fisiovital.dto.SessionResponseDTO;
+import com.healthdev.fisiovital.dto.request.RescheduleSessionRequestDTO;
+import com.healthdev.fisiovital.dto.response.SessionResponseDTO;
 import com.healthdev.fisiovital.service.SessionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

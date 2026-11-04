@@ -1,7 +1,7 @@
 package com.healthdev.fisiovital.service;
 
-import com.healthdev.fisiovital.dto.AppointmentHistoryResponseDTO;
-import com.healthdev.fisiovital.dto.AppointmentResponseDTO;
+import com.healthdev.fisiovital.dto.response.AppointmentHistoryResponseDTO;
+import com.healthdev.fisiovital.dto.response.AppointmentResponseDTO;
 import com.healthdev.fisiovital.exception.BusinessException;
 import com.healthdev.fisiovital.mapper.AppointmentMapper;
 import com.healthdev.fisiovital.model.Session;
