@@ -1,6 +1,6 @@
 package com.healthdev.fisiovital.mapper;
 
-import com.healthdev.fisiovital.dto.PhysiotherapistResponseDTO;
+import com.healthdev.fisiovital.dto.response.PhysiotherapistResponseDTO;
 import com.healthdev.fisiovital.model.Physiotherapist;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

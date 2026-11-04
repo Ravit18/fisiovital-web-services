@@ -1,6 +1,6 @@
 package com.healthdev.fisiovital.exception;
 
-import com.healthdev.fisiovital.dto.ErrorResponseDTO;
+import com.healthdev.fisiovital.dto.response.ErrorResponseDTO;
 import jakarta.persistence.QueryTimeoutException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

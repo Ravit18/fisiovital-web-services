@@ -1,7 +1,7 @@
 package com.healthdev.fisiovital.mapper;
 
-import com.healthdev.fisiovital.dto.CreateTreatmentPlanRequestDTO;
-import com.healthdev.fisiovital.dto.TreatmentPlanResponseDTO;
+import com.healthdev.fisiovital.dto.request.CreateTreatmentPlanRequestDTO;
+import com.healthdev.fisiovital.dto.response.TreatmentPlanResponseDTO;
 import com.healthdev.fisiovital.model.Patient;
 import com.healthdev.fisiovital.model.Physiotherapist;
 import com.healthdev.fisiovital.model.TreatmentPlan;

@@ -1,7 +1,7 @@
 package com.healthdev.fisiovital.mapper;
 
-import com.healthdev.fisiovital.dto.AgendaItemResponseDTO;
-import com.healthdev.fisiovital.dto.SessionResponseDTO;
+import com.healthdev.fisiovital.dto.response.AgendaItemResponseDTO;
+import com.healthdev.fisiovital.dto.response.SessionResponseDTO;
 import com.healthdev.fisiovital.model.AvailabilitySlot;
 import com.healthdev.fisiovital.model.Session;
 import org.mapstruct.Mapper;

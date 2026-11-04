@@ -1,8 +1,8 @@
 package com.healthdev.fisiovital.mapper;
 
-import com.healthdev.fisiovital.dto.AuthenticatedUserResponseDTO;
-import com.healthdev.fisiovital.dto.SignUpPatientRequestDTO;
-import com.healthdev.fisiovital.dto.SignUpPhysiotherapistRequestDTO;
+import com.healthdev.fisiovital.dto.response.AuthenticatedUserResponseDTO;
+import com.healthdev.fisiovital.dto.request.SignUpPatientRequestDTO;
+import com.healthdev.fisiovital.dto.request.SignUpPhysiotherapistRequestDTO;
 import com.healthdev.fisiovital.model.Patient;
 import com.healthdev.fisiovital.model.Physiotherapist;
 import com.healthdev.fisiovital.model.User;

@@ -1,4 +1,4 @@
-package com.healthdev.fisiovital.dto;
+package com.healthdev.fisiovital.dto.response;
 
 import java.time.LocalDateTime;
 import java.util.List;

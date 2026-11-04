@@ -1,7 +1,7 @@
 # C4 · Nivel 3 — Diagrama de Componentes (Web Services)
 
 Componentes del contenedor **Web Services** (Spring Boot 3.5 / Java 21). El código sigue una **arquitectura en
-capas**, con una sola carpeta por capa: `controller/`, `service/`, `mapper/`, `repository/`, `model/` y `dto/`
+capas**, con una sola carpeta por capa: `controller/`, `service/`, `mapper/`, `repository/`, `model/` y `dto/` (`request/` y `response/`)
 (además de `security/`, `config/` y `exception/`). En el diagrama los componentes se agrupan por módulo funcional
 solo para leerlo mejor; en el código un módulo es el prefijo de sus clases (`Auth*`, `Session*`, …).
 Flujo de cada petición: Controller (`controller/`) → Service (`service/`, convierte DTO ↔ Entity con el

@@ -1,10 +1,10 @@
 package com.healthdev.fisiovital.service;
 
-import com.healthdev.fisiovital.dto.BookSessionRequestDTO;
-import com.healthdev.fisiovital.dto.CreateTreatmentPlanRequestDTO;
-import com.healthdev.fisiovital.dto.SessionResponseDTO;
-import com.healthdev.fisiovital.dto.TreatmentPlanResponseDTO;
-import com.healthdev.fisiovital.dto.UpdateTreatmentPlanRequestDTO;
+import com.healthdev.fisiovital.dto.request.BookSessionRequestDTO;
+import com.healthdev.fisiovital.dto.request.CreateTreatmentPlanRequestDTO;
+import com.healthdev.fisiovital.dto.response.SessionResponseDTO;
+import com.healthdev.fisiovital.dto.response.TreatmentPlanResponseDTO;
+import com.healthdev.fisiovital.dto.request.UpdateTreatmentPlanRequestDTO;
 import com.healthdev.fisiovital.exception.BusinessException;
 import com.healthdev.fisiovital.mapper.SessionMapper;
 import com.healthdev.fisiovital.mapper.TreatmentPlanMapper;

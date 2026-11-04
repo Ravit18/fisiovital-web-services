@@ -1,9 +1,9 @@
 package com.healthdev.fisiovital.controller;
 
-import com.healthdev.fisiovital.dto.AuthenticatedUserResponseDTO;
-import com.healthdev.fisiovital.dto.SignInRequestDTO;
-import com.healthdev.fisiovital.dto.SignUpPatientRequestDTO;
-import com.healthdev.fisiovital.dto.SignUpPhysiotherapistRequestDTO;
+import com.healthdev.fisiovital.dto.response.AuthenticatedUserResponseDTO;
+import com.healthdev.fisiovital.dto.request.SignInRequestDTO;
+import com.healthdev.fisiovital.dto.request.SignUpPatientRequestDTO;
+import com.healthdev.fisiovital.dto.request.SignUpPhysiotherapistRequestDTO;
 import com.healthdev.fisiovital.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
