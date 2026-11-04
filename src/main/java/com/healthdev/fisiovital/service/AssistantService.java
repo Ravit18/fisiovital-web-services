@@ -1,7 +1,7 @@
 package com.healthdev.fisiovital.service;
 
-import com.healthdev.fisiovital.dto.AskAssistantRequestDTO;
-import com.healthdev.fisiovital.dto.AssistantReplyResponseDTO;
+import com.healthdev.fisiovital.dto.request.AskAssistantRequestDTO;
+import com.healthdev.fisiovital.dto.response.AssistantReplyResponseDTO;
 import com.healthdev.fisiovital.exception.BusinessException;
 import com.healthdev.fisiovital.mapper.AssistantMapper;
 import com.healthdev.fisiovital.model.ChatMessage;

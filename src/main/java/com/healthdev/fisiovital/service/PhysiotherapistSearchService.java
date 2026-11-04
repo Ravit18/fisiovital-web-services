@@ -1,7 +1,7 @@
 package com.healthdev.fisiovital.service;
 
-import com.healthdev.fisiovital.dto.PhysiotherapistResponseDTO;
-import com.healthdev.fisiovital.dto.PhysiotherapistSearchResponseDTO;
+import com.healthdev.fisiovital.dto.response.PhysiotherapistResponseDTO;
+import com.healthdev.fisiovital.dto.response.PhysiotherapistSearchResponseDTO;
 import com.healthdev.fisiovital.mapper.PhysiotherapistMapper;
 import com.healthdev.fisiovital.model.Physiotherapist;
 import com.healthdev.fisiovital.model.Specialty;

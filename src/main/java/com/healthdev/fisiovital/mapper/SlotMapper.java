@@ -1,6 +1,6 @@
 package com.healthdev.fisiovital.mapper;
 
-import com.healthdev.fisiovital.dto.SlotResponseDTO;
+import com.healthdev.fisiovital.dto.response.SlotResponseDTO;
 import com.healthdev.fisiovital.model.AvailabilitySlot;
 import org.mapstruct.Mapper;
 

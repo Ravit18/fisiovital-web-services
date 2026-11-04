@@ -1,7 +1,7 @@
 package com.healthdev.fisiovital.controller;
 
-import com.healthdev.fisiovital.dto.AskAssistantRequestDTO;
-import com.healthdev.fisiovital.dto.AssistantReplyResponseDTO;
+import com.healthdev.fisiovital.dto.request.AskAssistantRequestDTO;
+import com.healthdev.fisiovital.dto.response.AssistantReplyResponseDTO;
 import com.healthdev.fisiovital.service.AssistantService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

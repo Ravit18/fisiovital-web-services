@@ -1,7 +1,7 @@
 package com.healthdev.fisiovital.service;
 
 import com.healthdev.fisiovital.config.I18nConfig;
-import com.healthdev.fisiovital.dto.NotificationResponseDTO;
+import com.healthdev.fisiovital.dto.response.NotificationResponseDTO;
 import com.healthdev.fisiovital.exception.BusinessException;
 import com.healthdev.fisiovital.mapper.NotificationMapper;
 import com.healthdev.fisiovital.model.Notification;
