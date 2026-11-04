@@ -1,9 +1,9 @@
 package com.healthdev.fisiovital.service;
 
-import com.healthdev.fisiovital.dto.AgendaItemResponseDTO;
-import com.healthdev.fisiovital.dto.AgendaResponseDTO;
-import com.healthdev.fisiovital.dto.RescheduleSessionRequestDTO;
-import com.healthdev.fisiovital.dto.SessionResponseDTO;
+import com.healthdev.fisiovital.dto.response.AgendaItemResponseDTO;
+import com.healthdev.fisiovital.dto.response.AgendaResponseDTO;
+import com.healthdev.fisiovital.dto.request.RescheduleSessionRequestDTO;
+import com.healthdev.fisiovital.dto.response.SessionResponseDTO;
 import com.healthdev.fisiovital.exception.BusinessException;
 import com.healthdev.fisiovital.mapper.SessionMapper;
 import com.healthdev.fisiovital.model.AvailabilitySlot;

@@ -1,4 +1,4 @@
-package com.healthdev.fisiovital.dto;
+package com.healthdev.fisiovital.dto.request;
 
 import com.healthdev.fisiovital.model.Specialty;
 import io.swagger.v3.oas.annotations.media.Schema;

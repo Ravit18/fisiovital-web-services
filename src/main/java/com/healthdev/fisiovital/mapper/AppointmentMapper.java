@@ -1,6 +1,6 @@
 package com.healthdev.fisiovital.mapper;
 
-import com.healthdev.fisiovital.dto.AppointmentResponseDTO;
+import com.healthdev.fisiovital.dto.response.AppointmentResponseDTO;
 import com.healthdev.fisiovital.model.Session;
 import org.mapstruct.Context;
 import org.mapstruct.Mapper;
