@@ -2,6 +2,7 @@
 
 Detalle de clases de un componente: **reprogramar y cancelar una sesión**. Muestra cómo cada capa
 (controller → service → repository, con records `*RequestDTO` / `*ResponseDTO` y un Mapper de MapStruct) se implementa en el código real.
+El modelo de dominio completo (todas las entidades) está en el diagrama de clases del informe.
 
 ```mermaid
 classDiagram
