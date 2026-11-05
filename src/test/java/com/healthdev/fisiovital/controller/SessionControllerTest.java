@@ -148,4 +148,60 @@ class SessionControllerTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.status").value("LATE_CANCELLED"))
                 .andExpect(jsonPath("$.lateChange").value(true));
     }
+
+    // ---------------- US11 - Reglas de agenda del paciente al reprogramar ----------------
+
+    @Test
+    void us11_error_reprogramarAHoraOcupadaPorSesionConOtroFisio409() throws Exception {
+        String date = todayPlusDays(3);
+        JsonNode physioX = newPhysio("DEPORTIVA");
+        JsonNode physioY = newPhysio("DEPORTIVA");
+        JsonNode slotsX = publishSlots(physioX.get("token").asText(), date, "09:00", "11:00", 60);
+        JsonNode slotsY = publishSlots(physioY.get("token").asText(), date, "10:00", "11:00", 60);
+
+        String patient = newPatientToken();
+        long planX = createPlan(patient, physioX.get("profileId").asLong(), 4, 2).get("id").asLong();
+        long planY = createPlan(patient, physioY.get("profileId").asLong(), 4, 2).get("id").asLong();
+        long sessionX = bookSession(patient, planX, slotsX.get(0).get("id").asLong()).get("id").asLong();
+        bookSession(patient, planY, slotsY.get(0).get("id").asLong()); // 10:00 con Y
+
+        mockMvc.perform(authed(patch("/api/v1/sessions/" + sessionX + "/reschedule"), patient)
+                        .content("{\"newSlotId\":" + slotsX.get(1).get("id").asLong() + "}")) // 10:00 con X
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Ya tienes otra sesión reservada en ese horario"));
+    }
+
+    @Test
+    void us11_alternativo_reprogramarDentroDeLaMismaSemanaNoSeCuentaASiMisma() throws Exception {
+        JsonNode physio = newPhysio("DEPORTIVA");
+        JsonNode slots = publishSlots(physio.get("token").asText(), todayPlusDays(3), "09:00", "11:00", 60);
+
+        String patient = newPatientToken();
+        long planId = createPlan(patient, physio.get("profileId").asLong(), 4, 1).get("id").asLong();
+        long session = bookSession(patient, planId, slots.get(0).get("id").asLong()).get("id").asLong();
+
+        mockMvc.perform(authed(patch("/api/v1/sessions/" + session + "/reschedule"), patient)
+                        .content("{\"newSlotId\":" + slots.get(1).get("id").asLong() + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.slotId").value(slots.get(1).get("id").asInt()));
+    }
+
+    @Test
+    void us11_error_reprogramarAUnaSemanaYaCompleta422() throws Exception {
+        JsonNode physio = newPhysio("DEPORTIVA");
+        String physioToken = physio.get("token").asText();
+        JsonNode week1 = publishSlots(physioToken, todayPlusDays(3), "09:00", "11:00", 60);
+        JsonNode week2 = publishSlots(physioToken, todayPlusDays(10), "09:00", "10:00", 60);
+
+        String patient = newPatientToken();
+        long planId = createPlan(patient, physio.get("profileId").asLong(), 4, 1).get("id").asLong();
+        bookSession(patient, planId, week1.get(0).get("id").asLong());
+        long second = bookSession(patient, planId, week2.get(0).get("id").asLong()).get("id").asLong();
+
+        mockMvc.perform(authed(patch("/api/v1/sessions/" + second + "/reschedule"), patient)
+                        .content("{\"newSlotId\":" + week1.get(1).get("id").asLong() + "}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.message")
+                        .value("Tu plan permite 1 sesión(es) por semana y esa semana ya está completa"));
+    }
 }
