@@ -9,12 +9,17 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
   `model/`, `dto/`, además de `security/`, `config/` y `exception/`). Los controllers reciben `*RequestDTO` y
   devuelven `*ResponseDTO`; los services convierten con mappers de MapStruct y la API nunca expone entidades.
 - `src/test` sigue la misma estructura: `controller/<Módulo>ControllerTest` y `exception/GlobalExceptionHandlerTest`
-  (85 tests).
-- CORS: en local se acepta cualquier puerto de `localhost`; en la nube se fijan los dominios con
-  `CORS_ALLOWED_ORIGINS`.
+  (92 tests).
+- CORS en `config/CorsConfig` (`WebMvcConfigurer.addCorsMappings`), activado en Security con `cors(withDefaults())`:
+  en local cualquier puerto de `localhost`; en la nube los dominios de `CORS_ALLOWED_ORIGINS`.
 - Diagrama C4 de componentes y documentación actualizados a la arquitectura en capas.
 
 ### Fixed
+- US10/US11: un paciente ya no puede tener dos sesiones a la misma hora aunque sean con fisioterapeutas distintos
+  (409 `session.patient.overlap`).
+- US10/US11: la frecuencia del plan ahora es un máximo de sesiones por semana, de lunes a domingo; las canceladas no
+  cuentan (422 `plan.frequency.exceeded`). Las dos reglas viven en `service/BookingRules` y también aplican al
+  asistente (US19/US20).
 - US16: buscar un paciente por nombre devolvía también sus sesiones con otros fisioterapeutas. Ahora solo muestra
   las del fisioterapeuta que consulta (test de regresión incluido).
 

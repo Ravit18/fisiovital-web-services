@@ -186,13 +186,13 @@ y, en los casos de error y alternativos, el **mensaje traducido**. `src/test` si
 | `controller/PhysiotherapistControllerTest` | US04–US05 | 8 |
 | `controller/AvailabilityControllerTest` | US06–US07 | 6 |
 | `controller/AgendaControllerTest` | US08 | 3 |
-| `controller/TreatmentPlanControllerTest` | US09–US10 y CRUD del plan | 15 |
-| `controller/SessionControllerTest` | US11–US12 | 6 |
+| `controller/TreatmentPlanControllerTest` | US09–US10, CRUD del plan, choque de horario y frecuencia semanal | 18 |
+| `controller/SessionControllerTest` | US11–US12 (incluye choque de horario y frecuencia al reprogramar) | 9 |
 | `controller/NotificationControllerTest` | US13 | 5 |
 | `controller/AppointmentHistoryControllerTest` | US14–US16 | 9 |
 | `controller/AssistantControllerTest` y `AssistantControllerWithoutKeyTest` | US17–US20 | 17 |
 | `exception/GlobalExceptionHandlerTest` | Errores 404/405/503 (incluye el 503 de US14) | 3 |
-| `SmokeTest` | Arranque, seguridad y creación del esquema de la BD | 3 |
+| `SmokeTest` | Arranque, seguridad, CORS (preflight) y creación del esquema de la BD | 4 |
 
 ## 3. Probar con Postman
 
