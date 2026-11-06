@@ -4,12 +4,20 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Unreleased]
 
+### Added
+- Historia clínica: el fisioterapeuta escribe y lee notas del paciente (`GET`/`POST
+  /api/v1/patients/{patientId}/clinical-notes`). Solo acceden los fisioterapeutas con un plan con ese paciente
+  (403); las notas se comparten entre ellos y no se editan (13 tests).
+- Evolución por sesión: la nota puede llevar `sessionId`; la sesión debe ser del paciente (400), de un plan del
+  fisioterapeuta (403), ya iniciada y no cancelada (422).
+- `scripts/seed-history.sql`: historia clínica de demostración (sesiones pasadas con nota) para PostgreSQL.
+
 ### Changed
 - Arquitectura en capas según el curso: una carpeta por capa (`controller/`, `service/`, `mapper/`, `repository/`,
   `model/`, `dto/`, además de `security/`, `config/` y `exception/`). Los controllers reciben `*RequestDTO` y
   devuelven `*ResponseDTO`; los services convierten con mappers de MapStruct y la API nunca expone entidades.
 - `src/test` sigue la misma estructura: `controller/<Módulo>ControllerTest` y `exception/GlobalExceptionHandlerTest`
-  (92 tests).
+  (105 tests).
 - CORS en `config/CorsConfig` (`WebMvcConfigurer.addCorsMappings`), activado en Security con `cors(withDefaults())`:
   en local cualquier puerto de `localhost`; en la nube los dominios de `CORS_ALLOWED_ORIGINS`.
 - Diagrama C4 de componentes y documentación actualizados a la arquitectura en capas.

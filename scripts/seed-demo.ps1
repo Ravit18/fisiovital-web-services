@@ -5,7 +5,8 @@
 .DESCRIPTION
     Todo pasa por la API real (no escribe en la base de datos), así que respeta las reglas del negocio:
     las citas quedan en los próximos días y van cambiando de estado a medida que pasan.
-    Se puede ejecutar varias veces: reutiliza las cuentas, los horarios y los planes que ya existen.
+    Se puede ejecutar varias veces: reutiliza las cuentas, los horarios y los planes que ya existen, y en los
+    planes existentes completa las citas futuras que falten (útil cuando las anteriores ya pasaron).
 
     Los correos son @example.com (dominio reservado): los recordatorios de US13 no le llegan a nadie real.
 
@@ -35,7 +36,11 @@ $physiotherapists = @(
     @{ key = 'lucia'; fullName = 'Lucía Vargas'; email = 'lucia.vargas@example.com'; phone = '965432109'
        licenseNumber = 'DEMO-103'; specialty = 'NEUROLOGICA'; yearsOfExperience = 6
        description = 'Rehabilitación neurológica para pacientes tras un ACV o con enfermedad de Parkinson.'
-       shifts = @(@{ start = '08:00'; end = '12:00'; duration = 60 }) }
+       shifts = @(@{ start = '08:00'; end = '12:00'; duration = 60 }) },
+    @{ key = 'diego'; fullName = 'Diego Salazar'; email = 'diego.salazar@example.com'; phone = '910987654'
+       licenseNumber = 'DEMO-104'; specialty = 'POSTQUIRURGICA'; yearsOfExperience = 10
+       description = 'Rehabilitación postquirúrgica de hombro y rodilla (manguito rotador, LCA, prótesis).'
+       shifts = @(@{ start = '09:00'; end = '13:00'; duration = 60 }, @{ start = '15:00'; end = '19:00'; duration = 60 }) }
 )
 
 $patients = @(
@@ -56,7 +61,13 @@ $plans = @(
     @{ patient = 'luis'; physio = 'jorge'; diagnosis = 'Lumbalgia mecánica crónica'
        totalSessions = 12; frequencyPerWeek = 3; book = 5; hour = 9; reschedule = $true },
     @{ patient = 'sofia'; physio = 'lucia'; diagnosis = 'Rehabilitación tras ACV isquémico'
-       totalSessions = 20; frequencyPerWeek = 3; book = 6; hour = 10 }
+       totalSessions = 20; frequencyPerWeek = 3; book = 6; hour = 10 },
+    @{ patient = 'ana'; physio = 'diego'; diagnosis = 'Rehabilitación tras cirugía de manguito rotador'
+       totalSessions = 10; frequencyPerWeek = 2; book = 4; hour = 11 },
+    @{ patient = 'luis'; physio = 'diego'; diagnosis = 'Recuperación tras reconstrucción de LCA'
+       totalSessions = 12; frequencyPerWeek = 1; book = 2; hour = 16 },
+    @{ patient = 'sofia'; physio = 'jorge'; diagnosis = 'Dorsalgia por mala postura'
+       totalSessions = 6; frequencyPerWeek = 1; book = 2; hour = 16 }
 )
 
 # --- Utilidades -------------------------------------------------------------------------------------------------
@@ -170,27 +181,49 @@ foreach ($plan in $plans) {
         physiotherapistId = $physioId; diagnosis = $plan.diagnosis
         totalSessions = $plan.totalSessions; frequencyPerWeek = $plan.frequencyPerWeek
     } -Token $token
+    $existing = $false
     if ($created.Status -eq 409) {
-        # El plan ya se cargó en una ejecución anterior: no se vuelve a reservar ni a cancelar.
-        Write-Host ("  {0,-16} -> {1,-14} {2}: ya existía" -f $patientName, $physioName, $plan.diagnosis)
-        continue
+        # El plan ya se cargó en una ejecución anterior: se reutiliza y solo se completan las citas futuras.
+        $mine = Invoke-Api GET '/treatment-plans/me' -Token $token
+        $current = @($mine.Data) | Where-Object { $_.physiotherapistId -eq $physioId -and $_.status -eq 'ACTIVE' } |
+            Select-Object -First 1
+        if (-not $current) { Write-Warning "$patientName con ${physioName}: $($created.Message)"; continue }
+        $existing = $true
+    } elseif (-not $created.Ok) {
+        Write-Warning "$patientName con ${physioName}: $($created.Message)"; continue
+    } else {
+        $current = $created.Data
     }
-    if (-not $created.Ok) { Write-Warning "$patientName con ${physioName}: $($created.Message)"; continue }
-    $current = $created.Data
 
-    $toBook = $plan.book
+    # Cuántas citas futuras reservadas tiene ya este plan.
+    $upcoming = 0
+    if ($existing) {
+        $history = Invoke-Api GET '/appointments/me?page=0&size=200' -Token $token
+        $upcoming = @($history.Data.appointments | Where-Object {
+            $_.physiotherapistId -eq $physioId -and $_.diagnosis -eq $current.diagnosis -and
+            $_.status -eq 'RESERVED' -and [datetime]$_.startTime -gt (Get-Date) }).Count
+    }
+    $remaining = $current.totalSessions - $current.bookedSessions
+    $toBook = [math]::Min($plan.book - $upcoming, $remaining)
+
     $booked = @()
     if ($toBook -gt 0) {
         $slots = Get-FreeSlots $physioId $token
         $next = (Get-Date).AddDays(1)
         $gap = [math]::Max(1, [math]::Floor(7 / $plan.frequencyPerWeek))
-        for ($i = 0; $i -lt $toBook; $i++) {
+        $attempts = 0
+        while ($booked.Count -lt $toBook -and $attempts -lt 40) {
+            $attempts++
             $slot = Select-Slot $slots $next $plan.hour
             if (-not $slot) { Write-Warning "Ya no hay horarios libres para $patientName con $physioName"; break }
-            $result = Invoke-Api POST "/treatment-plans/$($current.id)/sessions" @{ slotId = $slot.id } -Token $token
-            if (-not $result.Ok) { Write-Warning "${patientName}: $($result.Message)"; break }
-            $booked += $result.Data
             $slots = @($slots | Where-Object { $_.id -ne $slot.id })
+            $result = Invoke-Api POST "/treatment-plans/$($current.id)/sessions" @{ slotId = $slot.id } -Token $token
+            if (-not $result.Ok) {
+                # Choque de horario del paciente o frecuencia semanal llena: se prueba el día siguiente.
+                if ($result.Status -in 409, 422) { $next = ([datetime]$slot.startTime).Date.AddDays(1); continue }
+                Write-Warning "${patientName}: $($result.Message)"; break
+            }
+            $booked += $result.Data
             $next = ([datetime]$slot.startTime).Date.AddDays($gap)
         }
     }
@@ -211,8 +244,9 @@ foreach ($plan in $plans) {
             if ($result.Ok) { $changes = ", reprogramó una al $(([datetime]$newSlot.startTime).ToString('dd/MM HH:mm'))" }
         }
     }
-    Write-Host ("  {0,-16} -> {1,-14} {2}: {3} citas nuevas{4}" -f $patientName, $physioName, $plan.diagnosis,
-        $booked.Count, $changes)
+    $origin = if ($existing) { "plan existente, $upcoming futuras previas" } else { 'plan nuevo' }
+    Write-Host ("  {0,-16} -> {1,-14} {2}: {3} citas nuevas ({4}){5}" -f $patientName, $physioName,
+        $plan.diagnosis, $booked.Count, $origin, $changes)
 }
 
 Write-Host "`nListo. Entra a la Web App con cualquiera de los correos de arriba." -ForegroundColor Green
