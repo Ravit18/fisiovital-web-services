@@ -190,6 +190,7 @@ y, en los casos de error y alternativos, el **mensaje traducido**. `src/test` si
 | `controller/SessionControllerTest` | US11–US12 (incluye choque de horario y frecuencia al reprogramar) | 9 |
 | `controller/NotificationControllerTest` | US13 | 5 |
 | `controller/AppointmentHistoryControllerTest` | US14–US16 | 9 |
+| `controller/ClinicalNoteControllerTest` | Historia clínica (notas del fisioterapeuta y evolución por sesión) | 13 |
 | `controller/AssistantControllerTest` y `AssistantControllerWithoutKeyTest` | US17–US20 | 17 |
 | `exception/GlobalExceptionHandlerTest` | Errores 404/405/503 (incluye el 503 de US14) | 3 |
 | `SmokeTest` | Arranque, seguridad, CORS (preflight) y creación del esquema de la BD | 4 |
@@ -222,6 +223,16 @@ Usa la API real, así que las citas quedan en fechas futuras y pasan a `COMPLETE
 ejecutar de nuevo sin duplicar nada. Las cuentas, la contraseña y los diagnósticos están al inicio del script; los
 correos son `@example.com`, así que los recordatorios por Gmail no le llegan a nadie real.
 
+**Historia clínica de demostración.** La API no permite crear horarios en el pasado, así que la historia (sesiones
+de las semanas pasadas con su nota de evolución, más una nota de antecedentes por paciente) se carga con SQL.
+Primero arranca el backend una vez (crea `clinical_notes`) y corre `seed-demo.ps1`; luego:
+
+```bash
+psql -h localhost -U postgres -d fisiovital -f scripts/seed-history.sql
+```
+
+Agrega 14 sesiones pasadas con nota a los 5 planes demo y renumera las citas futuras. Si ya se cargó, no hace nada.
+
 ## Endpoints
 
 | US | Método | Endpoint | Rol |
@@ -247,6 +258,7 @@ correos son `@example.com`, así que los recordatorios por Gmail no le llegan a 
 | US14 | GET | `/api/v1/appointments/me?page=0&size=20` | Paciente |
 | US15 | GET | `/api/v1/appointments/physiotherapist/me` | Fisioterapeuta |
 | US16 | GET | `/api/v1/appointments/physiotherapist/me?patientName=` | Fisioterapeuta |
+| Historia clínica | GET / POST | `/api/v1/patients/{patientId}/clinical-notes` `{sessionId?, text}` | Fisioterapeuta que trata al paciente |
 | US17–US20 | POST | `/api/v1/assistant/messages` `{conversationId?, message}` | Autenticado (reservar y reprogramar: Paciente) |
 
 Especialidades válidas: `DEPORTIVA`, `COLUMNA_POSTURA`, `GERIATRICA`, `PEDIATRICA`, `POSTQUIRURGICA`, `NEUROLOGICA`.
