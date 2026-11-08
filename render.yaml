@@ -7,6 +7,7 @@ services:
     plan: free
     region: oregon # misma zona que Supabase (aws us-west-2)
     branch: main
+    autoDeploy: false # despliega GitHub Actions (deploy hook) solo si build y pruebas pasan
     healthCheckPath: /v3/api-docs
     envVars:
       - key: DB_URL
