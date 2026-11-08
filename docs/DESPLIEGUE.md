@@ -27,5 +27,18 @@ y quita los permisos de `anon`/`authenticated`, también para tablas futuras. El
 3. Llenar las variables que pide (`DB_*`, `CORS_ALLOWED_ORIGINS`, `GEMINI_API_KEY`, `MAIL_*`). `JWT_SECRET` se genera solo.
 4. Probar `https://<servicio>.onrender.com/swagger-ui/index.html`.
 
+## 4. CI/CD con GitHub Actions (Capítulo V, 5.1)
+Pipeline `Commit → Build → Test → Deploy` en `.github/workflows/ci-cd.yml` de cada repo:
+- **Backend:** en push/PR a `main` o `develop` compila y corre las 105 pruebas (H2) y construye la imagen Docker.
+  En push a `main` llama al Deploy Hook de Render (`autoDeploy: false` en `render.yaml`).
+  - Secreto: `RENDER_DEPLOY_HOOK_URL` (Render → servicio → Settings → Deploy Hook).
+- **Web App:** `npm ci`, pruebas (`ng test`), `ng build` (usa `environment.prod.ts` → URL de Render).
+  En push a `main` publica en Netlify (`public/_redirects` para las rutas de Angular).
+  - Netlify → **Add new site → Deploy manually** (crea el sitio vacío) → copiar **Site ID**.
+  - Netlify → User settings → **Personal access tokens** → crear token.
+  - Secretos en GitHub (repo → Settings → Secrets and variables → Actions): `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`.
+- Luego, en Render, poner la URL de Netlify en `CORS_ALLOWED_ORIGINS`.
+- Evidencia: pestaña **Actions** del repo → ejecución en verde.
+
 Plan gratis: Render se duerme tras ~15 min sin uso (la primera petición tarda 30–60 s) y Supabase pausa el
 proyecto tras 7 días sin actividad (se reactiva desde su panel).
