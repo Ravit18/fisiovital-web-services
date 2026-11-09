@@ -238,6 +238,26 @@ class AssistantControllerTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.startsWith("I do not give medical advice")));
     }
 
+    // ---------- Control: las tools que escriben verifican el rol del token ----------
+
+    @Test
+    void control_physiotherapistCannotBookOrRescheduleThroughTools() throws Exception {
+        Fixture f = patientWithPlanAndSlots(4);
+        JsonNode physio = newPhysio("DEPORTIVA");
+        UserPrincipal principal = new UserPrincipal(physio.get("userId").asLong(), physio.get("email").asText(),
+                Role.PHYSIOTHERAPIST);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                principal, null, List.of(new SimpleGrantedAuthority("ROLE_PHYSIOTHERAPIST"))));
+        LocaleContextHolder.setLocale(ES);
+
+        AssistantTools.ActionResult booked = tools.bookSession(f.planId(), f.slotIds().get(0));
+        AssistantTools.ActionResult moved = tools.rescheduleSession(1L, f.slotIds().get(1));
+
+        assertThat(booked.success()).isFalse();
+        assertThat(booked.message()).isEqualTo("Solo un paciente puede reservar o reprogramar sesiones");
+        assertThat(moved.success()).isFalse();
+    }
+
     // ---------- Helpers ----------
 
     private record Fixture(JsonNode patient, String patientToken, long planId, List<Long> slotIds) {
