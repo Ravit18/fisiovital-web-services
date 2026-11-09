@@ -20,8 +20,9 @@ public record PublishSlotsRequestDTO(
         @JsonFormat(pattern = "HH:mm")
         LocalTime endTime,
 
+        // Cada sesión dura 1 hora, igual que en la Web App (SESSION_MINUTES = 60).
         @NotNull(message = "{validation.required}")
-        @Min(15)
-        @Max(240)
+        @Min(value = 60, message = "{validation.slots.duration}")
+        @Max(value = 60, message = "{validation.slots.duration}")
         Integer durationMinutes
 ) {}

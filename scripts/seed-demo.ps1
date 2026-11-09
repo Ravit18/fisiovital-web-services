@@ -28,7 +28,7 @@ $physiotherapists = @(
     @{ key = 'mariana'; fullName = 'Mariana Rojas'; email = 'mariana.rojas@example.com'; phone = '987654321'
        licenseNumber = 'DEMO-101'; specialty = 'DEPORTIVA'; yearsOfExperience = 8
        description = 'Fisioterapeuta deportiva con enfoque en readaptación de lesiones de rodilla y tobillo.'
-       shifts = @(@{ start = '08:00'; end = '12:00'; duration = 45 }, @{ start = '16:00'; end = '19:00'; duration = 45 }) },
+       shifts = @(@{ start = '08:00'; end = '12:00'; duration = 60 }, @{ start = '16:00'; end = '19:00'; duration = 60 }) },
     @{ key = 'jorge'; fullName = 'Jorge Paredes'; email = 'jorge.paredes@example.com'; phone = '976543210'
        licenseNumber = 'DEMO-102'; specialty = 'COLUMNA_POSTURA'; yearsOfExperience = 12
        description = 'Especialista en dolor de espalda, cuello y corrección postural.'
