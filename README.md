@@ -5,6 +5,8 @@ PostgreSQL, Spring AI (Google Gemini) y Swagger (OpenAPI). Cubre las **20 User S
 
 > Para instalarlo en otra PC, sigue en orden las secciones **Requisitos**, **0. Configurar variables locales**,
 > **1. Crear la base de datos** y **2. Abrir y ejecutar en IntelliJ IDEA**.
+>
+> En producción: https://fisiovital-web-services.onrender.com/swagger-ui/index.html (ver **Despliegue** al final).
 
 ## Qué incluye
 
@@ -68,6 +70,10 @@ Los diagramas están en Mermaid, así que GitHub los dibuja directamente al abri
    (`spring.config.import=optional:file:.env[.properties]`), y Docker Compose también.
 
 ```properties
+# Obligatoria: clave para firmar los tokens JWT (sin ella la app no arranca). Genérala con: openssl rand -base64 64
+JWT_SECRET=pega-aqui-la-clave-generada
+# Opcional: duración del token en minutos (por defecto 1440 = 24 h)
+JWT_EXPIRATION_MINUTES=1440
 GEMINI_API_KEY=tu-api-key-de-gemini
 GEMINI_MODEL=gemini-3.5-flash-lite
 MAIL_USERNAME=tu.correo@gmail.com
@@ -351,3 +357,52 @@ docker compose --profile full up --build
 ```
 
 Levanta PostgreSQL y la API juntas. Las variables de `.env` (`GEMINI_API_KEY`, `MAIL_USERNAME`, `MAIL_PASSWORD`...) se pasan solas al contenedor.
+
+## Despliegue
+
+| Producto | Servicio | URL |
+|---|---|---|
+| Web Services | Render (Docker) | https://fisiovital-web-services.onrender.com/swagger-ui/index.html |
+| Web App | Netlify | https://fisiovitalupc.netlify.app |
+| Base de datos | Supabase (PostgreSQL, Session pooler) | — |
+
+Guía detallada (Supabase, seguridad RLS, Render, Netlify): [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md).
+
+Pipeline CI/CD en `.github/workflows/ci-cd.yml` (GitHub Actions): **Commit → Build → Test → Deploy**.
+
+- En cada push o Pull Request a `develop` o `main`: `./mvnw verify` (las pruebas usan H2, no necesitan BD) y
+  construcción de la imagen Docker.
+- Solo en push a `main` y si todo pasó: llama al Deploy Hook de Render (secreto `RENDER_DEPLOY_HOOK_URL`).
+  `render.yaml` tiene `autoDeploy: false`, así que Render despliega solo cuando el pipeline lo pide.
+- Las variables de producción (`DB_*`, `JWT_SECRET`, `GEMINI_API_KEY`, `MAIL_*`, `CORS_ALLOWED_ORIGINS`) se editan en
+  Render → Environment, no en el código. Al guardar, elegir **Save and deploy**.
+- `config/SupabaseSecurityConfig` activa RLS en todas las tablas al arrancar (la Data API pública de Supabase no ve
+  nada; la app entra como dueña de las tablas y no se ve afectada).
+- Plan gratis: Render se duerme tras ~15 min sin uso (la primera petición tarda hasta ~1,5 min) y Supabase pausa el
+  proyecto tras 7 días sin actividad.
+
+## Cómo hacer cambios (GitFlow)
+
+```
+feat/mi-cambio ──PR──► develop ──PR──► main ──► se despliega solo en Render
+                  (corre pruebas)
+```
+
+1. Partir de `develop` actualizado y crear tu rama:
+   ```bash
+   git switch develop
+   git pull
+   git switch -c feat/nombre-del-cambio
+   ```
+2. Hacer los cambios y probarlos: `./mvnw spring-boot:run` y `./mvnw test`.
+   - Ojo: si tu `.env` apunta a Supabase, el backend local usa **la misma base que producción**.
+   - Si cambias entidades, Hibernate actualiza las tablas al arrancar (`ddl-auto=update`).
+3. Revisar con `git status` que no aparezcan `.env` ni `target/`. Luego:
+   ```bash
+   git add .
+   git commit -m "feat: descripción corta"
+   git push -u origin feat/nombre-del-cambio
+   ```
+4. En GitHub, abrir un PR hacia `develop`. Si Actions sale en verde, **Merge**.
+5. Para publicar, abrir un PR de `develop` hacia `main` y hacer **Merge**. En ~5 min está en Render.
+6. Si Actions sale en rojo no se despliega nada (sigue la versión anterior): abrir el run para ver el error.
