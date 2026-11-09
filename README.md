@@ -68,6 +68,10 @@ Los diagramas están en Mermaid, así que GitHub los dibuja directamente al abri
    (`spring.config.import=optional:file:.env[.properties]`), y Docker Compose también.
 
 ```properties
+# Obligatoria: clave para firmar los tokens JWT (sin ella la app no arranca). Genérala con: openssl rand -base64 64
+JWT_SECRET=pega-aqui-la-clave-generada
+# Opcional: duración del token en minutos (por defecto 1440 = 24 h)
+JWT_EXPIRATION_MINUTES=1440
 GEMINI_API_KEY=tu-api-key-de-gemini
 GEMINI_MODEL=gemini-3.5-flash-lite
 MAIL_USERNAME=tu.correo@gmail.com
