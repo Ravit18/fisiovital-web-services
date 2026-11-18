@@ -9,5 +9,3 @@ import jakarta.validation.constraints.Size;
 public record AskAssistantRequestDTO(
         Long conversationId,
         @NotBlank(message = "{validation.required}")
-        @Size(max = 1000, message = "{validation.assistant.message.size}") String message) {
-}

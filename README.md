@@ -1,36 +1,4 @@
-# FisioVital Web Services
-
-API RESTful de FisioVital, construida con Spring Boot 3.5, Java 21, Spring Data JPA, Spring Security + JWT,
-PostgreSQL, Spring AI (Google Gemini) y Swagger (OpenAPI). Cubre las **20 User Stories** del informe (US01 a US20).
-
-> Para instalarlo en otra PC, sigue en orden las secciones **Requisitos**, **0. Configurar variables locales**,
-> **1. Crear la base de datos** y **2. Abrir y ejecutar en IntelliJ IDEA**.
-
-## Qué incluye
-
-- **20 historias de usuario** (US01–US20), cada una con sus escenarios exitoso, de error y alternativo.
-- **Arquitectura en capas** Controller → Service → Repository, con DTOs (`*RequestDTO` / `*ResponseDTO`) y
-  mappers de MapStruct. La API nunca devuelve entidades (ver [Arquitectura en capas](#arquitectura-en-capas)).
-- **Asistente con IA (US17–US20)** con Spring AI y Google Gemini: resuelve dudas, recomienda especialistas y
-  reserva o reprograma sesiones conversando, reutilizando las mismas reglas de negocio.
-- **Recordatorio automático (US13)** 24 horas antes de cada sesión, por correo (Gmail) y como notificación.
-- Seguridad con **JWT y roles** (paciente / fisioterapeuta), mensajes en **dos idiomas** (es-419 / en-US según
-  `Accept-Language`), control de concurrencia con `@Version` y errores siempre con su código HTTP correcto.
-- **85 tests de integración** en verde y una **colección de Postman** con 71 aserciones (ver [Pruebas](#pruebas)).
-
-## Documentación
-
-| Documento | Contenido |
-|---|---|
-| [`docs/RESULTADO_SPRINT1.md`](docs/RESULTADO_SPRINT1.md) | Resultado del Sprint 1: estado de cada US, tests que la cubren y tabla real de endpoints |
-| [C4 · Nivel 1 — Contexto](docs/diagrams/c4-1-contexto.md) | Paciente, fisioterapeuta, FisioVital y los sistemas externos (SMTP, Gemini) |
-| [C4 · Nivel 2 — Contenedores](docs/diagrams/c4-2-contenedores.md) | Web App (Angular), Web Services (Spring Boot) y PostgreSQL |
-| [C4 · Nivel 3 — Componentes](docs/diagrams/c4-3-componentes.md) | Capas controller → service (+ mapper) → repository de cada módulo |
-| [C4 · Nivel 4 — Código](docs/diagrams/c4-4-codigo.md) | Clases que implementan reprogramar y cancelar una sesión (US11–US12) |
-| [`CHANGELOG.md`](CHANGELOG.md) | Cambios de cada versión |
-| Swagger | `http://localhost:8080/swagger-ui.html` con la app levantada: todos los endpoints con ejemplos |
-
-Los diagramas están en Mermaid, así que GitHub los dibuja directamente al abrir cada archivo.
+# FisioVital Web Services (Sprint 1)
 
 ## Correcciones de la retroalimentación (TB2)
 
@@ -54,89 +22,6 @@ Los diagramas están en Mermaid, así que GitHub los dibuja directamente al abri
 - IntelliJ IDEA (Community o Ultimate)
 - PostgreSQL 14 o superior (instalado localmente o con Docker)
 - Postman
-- Una cuenta de Google **personal** para:
-  - la API key **gratuita** de Gemini (asistente, US17–US20);
-  - la contraseña de aplicación de Gmail (recordatorios por correo, US13).
-
-  Sin estas credenciales la aplicación arranca igual: el asistente responde 503 "El asistente no está disponible"
-  (salvo sus respuestas de seguridad) y los recordatorios quedan solo como notificación en la plataforma.
-
-## 0. Configurar variables locales (`.env`)
-
-1. Copia `.env.example` como `.env` en la misma carpeta que `pom.xml`.
-2. Completa las variables (ver las dos secciones siguientes). Spring lo lee solo al iniciar
-   (`spring.config.import=optional:file:.env[.properties]`), y Docker Compose también.
-
-```properties
-GEMINI_API_KEY=tu-api-key-de-gemini
-GEMINI_MODEL=gemini-3.5-flash-lite
-MAIL_USERNAME=tu.correo@gmail.com
-MAIL_PASSWORD=abcdefghijklmnop
-```
-
-> ⚠️ `.env` **nunca** se sube a GitHub. Como el `.gitignore` del equipo es local y no está en el repositorio,
-> cada integrante debe crear el suyo al clonar, con al menos estas líneas, **antes** de hacer `git add`:
->
-> ```
-> .env
-> target/
-> .idea/
-> ```
->
-> Revisa siempre con `git status` que `.env` no aparezca antes de hacer commit.
-
-## API key de Gemini (gratis) — asistente US17–US20
-
-1. Entra a **https://aistudio.google.com/apikey** con una cuenta de Google **personal**
-   (las cuentas institucionales a veces tienen AI Studio bloqueado).
-2. Acepta los términos de Google AI Studio.
-3. Pulsa **Create API key** y elige o crea un proyecto de Google Cloud.
-4. Copia la key y pégala en `.env`: `GEMINI_API_KEY=tu-key`.
-
-**Para que sea gratis y nunca te cobren:**
-
-- **No** pulses *Set up billing* / *Upgrade* ni asocies una tarjeta. Sin una cuenta de facturación, la key queda en el
-  **free tier**: si se agota la cuota, la API responde `429` y el asistente muestra "El asistente no está disponible"
-  hasta que la cuota se renueve, pero **no cobra**.
-- En la lista de keys de AI Studio, el proyecto debe figurar en el plan gratuito (*Free*).
-- En el plan gratuito, Google puede usar el contenido para mejorar sus productos: usa **solo datos ficticios**,
-  nunca datos reales de pacientes.
-- Opcional: en Google Cloud Console → *APIs y servicios* → *Credenciales*, restringe la key a la
-  *Generative Language API*.
-- Al terminar el curso, borra la key desde AI Studio.
-
-**Qué modelo usar:** por defecto `gemini-3.5-flash-lite`. Cada modelo tiene su propia cuota gratuita; por ejemplo,
-`gemini-3.6-flash` solo permite **5 peticiones por minuto y 20 por día**, y una conversación de reserva usa entre
-4 y 6 peticiones (cada herramienta que llama el modelo cuenta). Flash-Lite soporta las herramientas (tool calling)
-y tiene una cuota mayor. Revisa tus límites en AI Studio → *Usage*. Si un modelo responde 404 (Google retira
-modelos para cuentas nuevas), elige otro *Flash-Lite* o *Flash* de la lista:
-
-```bash
-curl -H "x-goog-api-key: TU_KEY" https://generativelanguage.googleapis.com/v1beta/models
-```
-
-## Correo de recordatorios (Gmail) — US13
-
-El recordatorio se envía 24 horas antes de cada sesión, por correo y como notificación en la plataforma. Gmail no
-acepta tu contraseña normal desde aplicaciones: necesitas una **contraseña de aplicación**. **No hace falta Google
-Cloud ni pagar nada.**
-
-1. Activa la **verificación en dos pasos** de tu cuenta de Google: https://myaccount.google.com/signinoptions/two-step-verification
-   (es obligatoria para crear contraseñas de aplicación).
-2. Entra a **https://myaccount.google.com/apppasswords**.
-3. Escribe un nombre (por ejemplo, `FisioVital`) y pulsa **Crear**.
-4. Google muestra una contraseña de **16 letras** (`abcd efgh ijkl mnop`). Cópiala **sin espacios** en `.env`:
-
-   ```properties
-   MAIL_USERNAME=tu.correo@gmail.com
-   MAIL_PASSWORD=abcdefghijklmnop
-   ```
-
-5. Reinicia la aplicación. Los recordatorios salen desde `MAIL_USERNAME` (cámbialo con `MAIL_FROM` si quieres).
-
-Si el envío falla (credenciales mal copiadas, sin internet), la sesión **igual** queda notificada en la plataforma
-(`GET /api/v1/notifications`): es el escenario de error de US13. Al terminar el curso, revoca la contraseña de
-aplicación desde la misma página.
 
 ## 1. Crear la base de datos
 
@@ -161,39 +46,6 @@ Las tablas se crean solas al iniciar la aplicación (`spring.jpa.hibernate.ddl-a
 5. Ejecuta `FisioVitalApplication` (botón ▶ junto al método `main`).
 6. La API queda en `http://localhost:8080` y la documentación en **http://localhost:8080/swagger-ui.html**.
 
-Desde la terminal, sin instalar Maven (la primera vez descarga Maven 3.9.16 solo):
-
-```bash
-./mvnw test              # Windows: mvnw.cmd test
-./mvnw spring-boot:run   # Windows: mvnw.cmd spring-boot:run
-```
-
-## Pruebas
-
-```bash
-./mvnw test   # Windows: mvnw.cmd test  → 85 tests, 0 fallos
-```
-
-Son tests de integración: levantan la aplicación completa con una base H2 en modo PostgreSQL y llaman a los
-endpoints con MockMvc, así que prueban de punta a punta controller, service, mapper, repository, seguridad y
-mensajes i18n. No necesitan `.env` ni PostgreSQL, y Gemini se simula. Cada escenario comprueba el **código HTTP**
-y, en los casos de error y alternativos, el **mensaje traducido**. `src/test` sigue la misma estructura en capas que
-`src/main`:
-
-| Test | Historias | Tests |
-|---|---|---|
-| `controller/AuthControllerTest` | US01–US03 | 10 |
-| `controller/PhysiotherapistControllerTest` | US04–US05 | 8 |
-| `controller/AvailabilityControllerTest` | US06–US07 | 6 |
-| `controller/AgendaControllerTest` | US08 | 3 |
-| `controller/TreatmentPlanControllerTest` | US09–US10 y CRUD del plan | 15 |
-| `controller/SessionControllerTest` | US11–US12 | 6 |
-| `controller/NotificationControllerTest` | US13 | 5 |
-| `controller/AppointmentHistoryControllerTest` | US14–US16 | 9 |
-| `controller/AssistantControllerTest` y `AssistantControllerWithoutKeyTest` | US17–US20 | 17 |
-| `exception/GlobalExceptionHandlerTest` | Errores 404/405/503 (incluye el 503 de US14) | 3 |
-| `SmokeTest` | Arranque, seguridad y creación del esquema de la BD | 3 |
-
 ## 3. Probar con Postman
 
 1. *Import* → selecciona `postman/FisioVital.postman_collection.json`.
@@ -202,25 +54,6 @@ y, en los casos de error y alternativos, el **mensaje traducido**. `src/test` si
 4. Cada corrida genera usuarios nuevos, así que puedes repetirla las veces que quieras.
 
 Para cambiar el idioma de las respuestas, cambia la variable `lang` a `en-US` (por defecto `es-419`).
-
-La carpeta **08 Asistente IA (US17–US20)** necesita `GEMINI_API_KEY` y conversa con Gemini real. Sus escenarios
-se validan con lo que queda en la agenda del fisioterapeuta (qué bloque se reservó o se movió), no con el texto
-exacto de la respuesta. Antes de cada mensaje espera `aiDelayMs` (20 s) para no superar las 15 peticiones por
-minuto del plan gratuito, por eso la corrida completa tarda unos 4 minutos. Con una key de pago puedes poner
-`aiDelayMs` en `0` en las variables de la colección.
-
-## 4. Datos de demostración (para la Web App)
-
-Con el backend corriendo, `scripts/seed-demo.ps1` crea 3 fisioterapeutas y 4 pacientes. También publica sus horarios
-para los próximos 14 días y reserva citas con planes de tratamiento, una cancelada y una reprogramada:
-
-```bash
-powershell -ExecutionPolicy Bypass -File scripts\seed-demo.ps1
-```
-
-Usa la API real, así que las citas quedan en fechas futuras y pasan a `COMPLETED` cuando llega su hora. Se puede
-ejecutar de nuevo sin duplicar nada. Las cuentas, la contraseña y los diagnósticos están al inicio del script; los
-correos son `@example.com`, así que los recordatorios por Gmail no le llegan a nadie real.
 
 ## Endpoints
 
@@ -243,11 +76,10 @@ correos son `@example.com`, así que los recordatorios por Gmail no le llegan a 
 | US11 | PATCH | `/api/v1/sessions/{sessionId}/reschedule` | Paciente |
 | US12 | PATCH | `/api/v1/sessions/{sessionId}/cancel` | Paciente |
 | US13 | GET | `/api/v1/notifications` | Autenticado |
-| — | PATCH | `/api/v1/notifications/{id}/read` | Autenticado |
-| US14 | GET | `/api/v1/appointments/me?page=0&size=20` | Paciente |
-| US15 | GET | `/api/v1/appointments/physiotherapist/me` | Fisioterapeuta |
-| US16 | GET | `/api/v1/appointments/physiotherapist/me?patientName=` | Fisioterapeuta |
-| US17–US20 | POST | `/api/v1/assistant/messages` `{conversationId?, message}` | Autenticado (reservar y reprogramar: Paciente) |
+| US14 | POST | `/api/v1/sessions/{sessionId}/clinical-note` | Fisioterapeuta |
+| US14 | PUT | `/api/v1/clinical-notes/{noteId}` | Fisioterapeuta |
+| US15 | GET | `/api/v1/patients/{patientId}/clinical-history` | Fisioterapeuta |
+| US16 | GET | `/api/v1/treatment-plans/{planId}/progress` | Paciente |
 
 Especialidades válidas: `DEPORTIVA`, `COLUMNA_POSTURA`, `GERIATRICA`, `PEDIATRICA`, `POSTQUIRURGICA`, `NEUROLOGICA`.
 
@@ -338,4 +170,4 @@ Si algo falla en el camino, el service lanza `BusinessException` con una clave d
 docker compose --profile full up --build
 ```
 
-Levanta PostgreSQL y la API juntas. Las variables de `.env` (`GEMINI_API_KEY`, `MAIL_USERNAME`, `MAIL_PASSWORD`...) se pasan solas al contenedor.
+Levanta PostgreSQL y la API juntas.

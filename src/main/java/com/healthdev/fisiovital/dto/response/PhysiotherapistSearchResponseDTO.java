@@ -9,8 +9,3 @@ import java.util.List;
  * Cuando no hay especialistas activos, {@code items} viene vacio y {@code message}
  * lleva el texto i18n explicando por que no hay resultados.
  */
-@Schema(example = "{\"items\":[{\"id\":1,\"fullName\":\"Mariana Rojas\",\"specialty\":\"DEPORTIVA\","
-        + "\"yearsOfExperience\":8,\"licenseNumber\":\"C-1024\",\"description\":\"...\","
-        + "\"hasAvailability\":true,\"availabilityMessage\":null}],\"message\":null}")
-public record PhysiotherapistSearchResponseDTO(List<PhysiotherapistResponseDTO> items, String message) {
-}

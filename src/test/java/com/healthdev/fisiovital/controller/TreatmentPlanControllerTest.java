@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -119,6 +120,74 @@ class TreatmentPlanControllerTest extends IntegrationTestBase {
                         .content("{\"slotId\":" + slots.get(1).get("id").asLong() + "}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.message").value("Ya reservaste todas las sesiones de tu plan"));
+    }
+
+    // ---------------- US10 - Reglas de agenda del paciente ----------------
+
+    @Test
+    void us10_error_pacienteYaTieneSesionALaMismaHoraConOtroFisio409() throws Exception {
+        String date = todayPlusDays(3);
+        JsonNode physioX = newPhysio("DEPORTIVA");
+        JsonNode physioY = newPhysio("DEPORTIVA");
+        JsonNode slotsX = publishSlots(physioX.get("token").asText(), date, "09:00", "10:00", 60);
+        JsonNode slotsY = publishSlots(physioY.get("token").asText(), date, "09:00", "11:00", 60);
+
+        // Un plan activo con cada fisio esta permitido.
+        String patient = newPatientToken();
+        long planX = createPlan(patient, physioX.get("profileId").asLong(), 4, 2).get("id").asLong();
+        long planY = createPlan(patient, physioY.get("profileId").asLong(), 4, 2).get("id").asLong();
+        bookSession(patient, planX, slotsX.get(0).get("id").asLong());
+
+        mockMvc.perform(authed(post("/api/v1/treatment-plans/" + planY + "/sessions"), patient)
+                        .content("{\"slotId\":" + slotsY.get(0).get("id").asLong() + "}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Ya tienes otra sesión reservada en ese horario"));
+
+        // 10:00 empieza justo cuando termina la de 09:00: no se cruza.
+        mockMvc.perform(authed(post("/api/v1/treatment-plans/" + planY + "/sessions"), patient)
+                        .content("{\"slotId\":" + slotsY.get(1).get("id").asLong() + "}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void us10_error_frecuenciaSemanalCompleta422() throws Exception {
+        String date = todayPlusDays(3);
+        JsonNode physio = newPhysio("DEPORTIVA");
+        JsonNode sameDay = publishSlots(physio.get("token").asText(), date, "09:00", "11:00", 60);
+
+        String patient = newPatientToken();
+        long planId = createPlan(patient, physio.get("profileId").asLong(), 4, 1).get("id").asLong();
+        bookSession(patient, planId, sameDay.get(0).get("id").asLong());
+
+        mockMvc.perform(authed(post("/api/v1/treatment-plans/" + planId + "/sessions"), patient)
+                        .content("{\"slotId\":" + sameDay.get(1).get("id").asLong() + "}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.message")
+                        .value("Tu plan permite 1 sesión(es) por semana y esa semana ya está completa"));
+    }
+
+    @Test
+    void us10_alternativo_frecuenciaPermiteLaSemanaSiguienteYNoCuentaCanceladas() throws Exception {
+        String date = todayPlusDays(3);
+        JsonNode physio = newPhysio("DEPORTIVA");
+        String physioToken = physio.get("token").asText();
+        JsonNode sameDay = publishSlots(physioToken, date, "09:00", "11:00", 60);
+        JsonNode nextWeek = publishSlots(physioToken, todayPlusDays(10), "09:00", "10:00", 60);
+
+        String patient = newPatientToken();
+        long planId = createPlan(patient, physio.get("profileId").asLong(), 4, 1).get("id").asLong();
+        long first = bookSession(patient, planId, sameDay.get(0).get("id").asLong()).get("id").asLong();
+
+        mockMvc.perform(authed(post("/api/v1/treatment-plans/" + planId + "/sessions"), patient)
+                        .content("{\"slotId\":" + nextWeek.get(0).get("id").asLong() + "}"))
+                .andExpect(status().isCreated());
+
+        // Al cancelar, la semana vuelve a tener cupo.
+        mockMvc.perform(authed(patch("/api/v1/sessions/" + first + "/cancel"), patient))
+                .andExpect(status().isOk());
+        mockMvc.perform(authed(post("/api/v1/treatment-plans/" + planId + "/sessions"), patient)
+                        .content("{\"slotId\":" + sameDay.get(1).get("id").asLong() + "}"))
+                .andExpect(status().isCreated());
     }
 
     // ---------------- CRUD del plan: ver, editar y eliminar ----------------

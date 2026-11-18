@@ -7,6 +7,8 @@ import com.healthdev.fisiovital.dto.response.SlotResponseDTO;
 import com.healthdev.fisiovital.dto.response.TreatmentPlanResponseDTO;
 import com.healthdev.fisiovital.exception.BusinessException;
 import com.healthdev.fisiovital.model.Specialty;
+import com.healthdev.fisiovital.model.Role;
+import com.healthdev.fisiovital.security.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -41,6 +43,7 @@ public class AssistantTools {
     private final AvailabilityService availabilityService;
     private final SessionService sessionService;
     private final MessageSource messageSource;
+    private final CurrentUserProvider currentUser;
 
     public record PhysioOption(Long id, String fullName, String specialty, int yearsOfExperience,
                                boolean hasAvailability) {
@@ -144,6 +147,9 @@ public class AssistantTools {
     public ActionResult bookSession(@ToolParam(description = "Id del plan activo") Long planId,
                                     @ToolParam(description = "Id del bloque libre elegido") Long slotId) {
         try {
+            if (!isPatient()) {
+                return new ActionResult(false, msg("assistant.patient.only"), null);
+            }
             return new ActionResult(true, null, toSessionOption(treatmentPlanService.bookSession(planId, new BookSessionRequestDTO(slotId))));
         } catch (BusinessException e) {
             return new ActionResult(false, msg(e), null);
@@ -164,10 +170,21 @@ public class AssistantTools {
     public ActionResult rescheduleSession(@ToolParam(description = "Id de la sesion a mover") Long sessionId,
                                           @ToolParam(description = "Id del nuevo bloque libre") Long newSlotId) {
         try {
+            if (!isPatient()) {
+                return new ActionResult(false, msg("assistant.patient.only"), null);
+            }
             return new ActionResult(true, null, toSessionOption(sessionService.reschedule(sessionId, new RescheduleSessionRequestDTO(newSlotId))));
         } catch (BusinessException e) {
             return new ActionResult(false, msg(e), null);
         }
+    }
+
+    /**
+     * Control dentro de las tools que escriben: aunque el asistente solo entrega las tools a pacientes,
+     * cada tool vuelve a verificar el rol del usuario del token antes de reservar o mover una sesion.
+     */
+    private boolean isPatient() {
+        return currentUser.get().role() == Role.PATIENT;
     }
 
     private TreatmentPlanResponseDTO activePlan(Long planId) {

@@ -5,6 +5,3 @@ import jakarta.validation.constraints.NotBlank;
 
 @Schema(example = "{\"email\":\"carlos.mendoza@gmail.com\",\"password\":\"Fisio2026*\"}")
 public record SignInRequestDTO(
-        @NotBlank(message = "{validation.required}") String email,
-        @NotBlank(message = "{validation.required}") String password) {
-}
