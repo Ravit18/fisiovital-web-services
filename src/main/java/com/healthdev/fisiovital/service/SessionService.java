@@ -39,7 +39,6 @@ public class SessionService {
     private final NotificationService notificationService;
     private final SessionMapper sessionMapper;
     private final MessageSource messageSource;
-    private final BookingRules bookingRules;
 
     /** US11 - Reprogramar una sesion a otro bloque libre del mismo fisioterapeuta. */
     @Transactional
@@ -53,8 +52,6 @@ public class SessionService {
                 || !newSlot.isFree() || !newSlot.getStartTime().isAfter(now)) {
             throw BusinessException.conflict("slot.not.available");
         }
-        bookingRules.checkPatientIsFree(session.getPlan(), newSlot, session.getId());
-        bookingRules.checkWeeklyFrequency(session.getPlan(), newSlot, session.getId());
         session.reschedule(newSlot, now);
         sessionRepository.saveAndFlush(session);
 

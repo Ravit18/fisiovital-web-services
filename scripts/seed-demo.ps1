@@ -5,6 +5,7 @@
 .DESCRIPTION
     Todo pasa por la API real (no escribe en la base de datos), así que respeta las reglas del negocio:
     las citas quedan en los próximos días y van cambiando de estado a medida que pasan.
+    Se puede ejecutar varias veces: reutiliza las cuentas, los horarios y los planes que ya existen.
 
     Los correos son @example.com (dominio reservado): los recordatorios de US13 no le llegan a nadie real.
 
@@ -26,6 +27,7 @@ $physiotherapists = @(
     @{ key = 'mariana'; fullName = 'Mariana Rojas'; email = 'mariana.rojas@example.com'; phone = '987654321'
        licenseNumber = 'DEMO-101'; specialty = 'DEPORTIVA'; yearsOfExperience = 8
        description = 'Fisioterapeuta deportiva con enfoque en readaptación de lesiones de rodilla y tobillo.'
+       shifts = @(@{ start = '08:00'; end = '12:00'; duration = 45 }, @{ start = '16:00'; end = '19:00'; duration = 45 }) },
     @{ key = 'jorge'; fullName = 'Jorge Paredes'; email = 'jorge.paredes@example.com'; phone = '976543210'
        licenseNumber = 'DEMO-102'; specialty = 'COLUMNA_POSTURA'; yearsOfExperience = 12
        description = 'Especialista en dolor de espalda, cuello y corrección postural.'
@@ -33,6 +35,7 @@ $physiotherapists = @(
     @{ key = 'lucia'; fullName = 'Lucía Vargas'; email = 'lucia.vargas@example.com'; phone = '965432109'
        licenseNumber = 'DEMO-103'; specialty = 'NEUROLOGICA'; yearsOfExperience = 6
        description = 'Rehabilitación neurológica para pacientes tras un ACV o con enfermedad de Parkinson.'
+       shifts = @(@{ start = '08:00'; end = '12:00'; duration = 60 }) }
 )
 
 $patients = @(
@@ -53,6 +56,7 @@ $plans = @(
     @{ patient = 'luis'; physio = 'jorge'; diagnosis = 'Lumbalgia mecánica crónica'
        totalSessions = 12; frequencyPerWeek = 3; book = 5; hour = 9; reschedule = $true },
     @{ patient = 'sofia'; physio = 'lucia'; diagnosis = 'Rehabilitación tras ACV isquémico'
+       totalSessions = 20; frequencyPerWeek = 3; book = 6; hour = 10 }
 )
 
 # --- Utilidades -------------------------------------------------------------------------------------------------
@@ -166,8 +170,12 @@ foreach ($plan in $plans) {
         physiotherapistId = $physioId; diagnosis = $plan.diagnosis
         totalSessions = $plan.totalSessions; frequencyPerWeek = $plan.frequencyPerWeek
     } -Token $token
-    $existing = $false
     if ($created.Status -eq 409) {
+        # El plan ya se cargó en una ejecución anterior: no se vuelve a reservar ni a cancelar.
+        Write-Host ("  {0,-16} -> {1,-14} {2}: ya existía" -f $patientName, $physioName, $plan.diagnosis)
+        continue
+    }
+    if (-not $created.Ok) { Write-Warning "$patientName con ${physioName}: $($created.Message)"; continue }
     $current = $created.Data
 
     $toBook = $plan.book
@@ -176,10 +184,11 @@ foreach ($plan in $plans) {
         $slots = Get-FreeSlots $physioId $token
         $next = (Get-Date).AddDays(1)
         $gap = [math]::Max(1, [math]::Floor(7 / $plan.frequencyPerWeek))
+        for ($i = 0; $i -lt $toBook; $i++) {
             $slot = Select-Slot $slots $next $plan.hour
             if (-not $slot) { Write-Warning "Ya no hay horarios libres para $patientName con $physioName"; break }
-            $slots = @($slots | Where-Object { $_.id -ne $slot.id })
             $result = Invoke-Api POST "/treatment-plans/$($current.id)/sessions" @{ slotId = $slot.id } -Token $token
+            if (-not $result.Ok) { Write-Warning "${patientName}: $($result.Message)"; break }
             $booked += $result.Data
             $slots = @($slots | Where-Object { $_.id -ne $slot.id })
             $next = ([datetime]$slot.startTime).Date.AddDays($gap)
@@ -202,6 +211,8 @@ foreach ($plan in $plans) {
             if ($result.Ok) { $changes = ", reprogramó una al $(([datetime]$newSlot.startTime).ToString('dd/MM HH:mm'))" }
         }
     }
+    Write-Host ("  {0,-16} -> {1,-14} {2}: {3} citas nuevas{4}" -f $patientName, $physioName, $plan.diagnosis,
+        $booked.Count, $changes)
 }
 
 Write-Host "`nListo. Entra a la Web App con cualquiera de los correos de arriba." -ForegroundColor Green

@@ -31,7 +31,6 @@ public class TreatmentPlanService {
     private final AvailabilityService availabilityService;
     private final TreatmentPlanMapper treatmentPlanMapper;
     private final SessionMapper sessionMapper;
-    private final BookingRules bookingRules;
 
     /** US09 - Registrar plan de tratamiento. */
     @Transactional
@@ -108,8 +107,6 @@ public class TreatmentPlanService {
         if (!slot.isFree()) {
             throw BusinessException.conflict("slot.just.booked");
         }
-        bookingRules.checkPatientIsFree(plan, slot, BookingRules.NO_SESSION);
-        bookingRules.checkWeeklyFrequency(plan, slot, BookingRules.NO_SESSION);
 
         Session session = sessionRepository.saveAndFlush(new Session(plan, slot, (int) activeSessions + 1));
         return sessionMapper.toResponse(session);
