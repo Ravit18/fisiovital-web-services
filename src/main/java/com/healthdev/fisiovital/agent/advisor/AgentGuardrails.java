@@ -1,4 +1,4 @@
-package com.healthdev.fisiovital.service;
+package com.healthdev.fisiovital.agent.advisor;
 
 import org.springframework.stereotype.Component;
 
@@ -12,10 +12,11 @@ import java.util.regex.Pattern;
  * alternativo) y molestias sin detalle (US18 error). Devuelve la clave i18n de la respuesta fija.
  */
 @Component
-public class AssistantGuardrails {
+public class AgentGuardrails {
 
     private static final Pattern EMERGENCY = Pattern.compile(
-            "dolor (en el|de|del) pecho|dolor toracico|falta de aire|no puedo respirar|dificultad para respirar"
+            "dolor( \\w+){0,3} (en el|de|del) pecho|dolor toracico|(falta|me falta) (de|el) aire|me ahogo"
+                    + "|no puedo respirar|dificultad para respirar"
                     + "|me desmaye|desmayo|perdi el conocimiento|perdida de conocimiento|paralisis|no siento (el|la|los|las) "
                     + "|chest pain|shortness of breath|can'?t breathe|cannot breathe|fainted|passed out");
 

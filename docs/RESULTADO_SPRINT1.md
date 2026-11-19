@@ -14,7 +14,7 @@ Verificado el 2026-11-01 sobre la arquitectura en capas (Controller → Service 
 
 Cada escenario tiene su petición en Postman (código HTTP + mensaje i18n) y su test de integración. Excepción: el
 error de US17 "IA caída → 503" no se puede provocar contra Gemini real; Postman prueba en su lugar la conversación
-de otro usuario (404) y el 503 queda cubierto por `AssistantControllerTest` y `AssistantControllerWithoutKeyTest`.
+de otro usuario (404) y el 503 queda cubierto por `AgentControllerTest` y `AgentControllerWithoutKeyTest`.
 
 | US | Exitoso | Error | Alternativo | Test de integración | Estado |
 |---|---|---|---|---|---|
@@ -34,10 +34,10 @@ de otro usuario (404) y el 503 queda cubierto por `AssistantControllerTest` y `A
 | US14 Historial paciente paginado (carga > 2 min → 503 "Por favor inténtalo más tarde") | ✅ | ✅ | ✅ | `controller/AppointmentHistoryControllerTest`, `exception/GlobalExceptionHandlerTest` | Done (corregida; T23 ahora sí implementada) |
 | US15 Historial fisioterapeuta | ✅ | ✅ | ✅ | `controller/AppointmentHistoryControllerTest` | Done |
 | US16 Historial de un paciente | ✅ | ✅ | ✅ | `controller/AppointmentHistoryControllerTest` | Done |
-| US17 Consultar dudas al asistente (política de cancelación / IA caída → 503 / sin indicaciones médicas) | ✅ | ✅ | ✅ | `controller/AssistantControllerTest`, `controller/AssistantControllerWithoutKeyTest` | Done |
-| US18 Recomendación de especialista (3 de columna / "Me duele" → pregunta / pecho → emergencias) | ✅ | ✅ | ✅ | `controller/AssistantControllerTest` | Done |
-| US19 Reservar mediante el asistente (confirmar / día lleno → propone otro / "el segundo") | ✅ | ✅ | ✅ | `controller/AssistantControllerTest` | Done |
-| US20 Reprogramar mediante el asistente (confirmar / ocupado → 2 cercanos / sin sesiones) | ✅ | ✅ | ✅ | `controller/AssistantControllerTest` | Done |
+| US17 Consultar dudas al asistente (política de cancelación / IA caída → 503 / sin indicaciones médicas) | ✅ | ✅ | ✅ | `agent/AgentControllerTest`, `agent/AgentControllerWithoutKeyTest` | Done |
+| US18 Recomendación de especialista (3 de columna / "Me duele" → pregunta / pecho → emergencias) | ✅ | ✅ | ✅ | `agent/AgentControllerTest` | Done |
+| US19 Reservar mediante el asistente (confirmar / día lleno → propone otro / "el segundo") | ✅ | ✅ | ✅ | `agent/AgentControllerTest` | Done |
+| US20 Reprogramar mediante el asistente (confirmar / ocupado → 2 cercanos / sin sesiones) | ✅ | ✅ | ✅ | `agent/AgentControllerTest` | Done |
 
 **20/20 historias completas.** US17–US20 además se probaron en vivo con Gemini real (`gemini-3.5-flash-lite`):
 una conversación completa reservó el jueves a las 15:00 tras responder "el segundo" y luego la movió al viernes

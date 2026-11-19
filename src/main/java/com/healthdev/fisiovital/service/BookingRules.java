@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 
@@ -41,12 +42,20 @@ public class BookingRules {
      * (reservadas o realizadas); las canceladas no.
      */
     public void checkWeeklyFrequency(TreatmentPlan plan, AvailabilitySlot slot, long excludeSessionId) {
-        LocalDateTime weekStart = slot.getStartTime().toLocalDate()
-                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay();
-        long inWeek = sessionRepository.countPlanSessionsBetween(plan.getId(), SessionStatus.ACTIVE,
-                weekStart, weekStart.plusWeeks(1), excludeSessionId);
-        if (inWeek >= plan.getFrequencyPerWeek()) {
+        if (weekIsFull(plan.getId(), plan.getFrequencyPerWeek(), slot.getStartTime().toLocalDate(), excludeSessionId)) {
             throw BusinessException.unprocessable("plan.frequency.exceeded", plan.getFrequencyPerWeek());
         }
+    }
+
+    /** Misma regla de frecuencia, sin lanzar error: el asistente la usa para no proponer semanas llenas. */
+    public boolean weekIsFull(Long planId, int frequencyPerWeek, LocalDate day, long excludeSessionId) {
+        LocalDateTime weekStart = weekStartOf(day).atStartOfDay();
+        long inWeek = sessionRepository.countPlanSessionsBetween(planId, SessionStatus.ACTIVE,
+                weekStart, weekStart.plusWeeks(1), excludeSessionId);
+        return inWeek >= frequencyPerWeek;
+    }
+
+    public static LocalDate weekStartOf(LocalDate day) {
+        return day.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
     }
 }

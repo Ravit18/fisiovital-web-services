@@ -1,8 +1,7 @@
-package com.healthdev.fisiovital.controller;
+package com.healthdev.fisiovital.agent;
 
-import com.healthdev.fisiovital.dto.request.AskAssistantRequestDTO;
-import com.healthdev.fisiovital.dto.response.AssistantReplyResponseDTO;
-import com.healthdev.fisiovital.service.AssistantService;
+import com.healthdev.fisiovital.agent.dto.ChatRequest;
+import com.healthdev.fisiovital.agent.dto.ChatResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,14 +18,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Assistant", description = "Asistente conversacional con IA (US17 - US20)")
-public class AssistantController {
+public class AgentController {
 
-    private final AssistantService assistantService;
+    private final AgentService agentService;
 
     @PostMapping("/messages")
     @Operation(summary = "US17-US20 - Enviar un mensaje al asistente (dudas, recomendacion de especialista, "
             + "reservar y reprogramar sesiones)")
-    public ResponseEntity<AssistantReplyResponseDTO> ask(@Valid @RequestBody AskAssistantRequestDTO request) {
-        return ResponseEntity.ok(assistantService.ask(request));
+    public ResponseEntity<ChatResponse> ask(@Valid @RequestBody ChatRequest request) {
+        return ResponseEntity.ok(agentService.ask(request));
     }
 }

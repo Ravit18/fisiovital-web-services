@@ -50,9 +50,9 @@ flowchart TB
         end
 
         subgraph assistant["Assistant* · US17–US20"]
-            asstCtrl["AssistantController"] --> asstSvc["AssistantService<br/><i>Spring AI ChatClient</i>"]
-            guard["AssistantGuardrails<br/><i>respuestas de seguridad</i>"]
-            asstTools["AssistantTools<br/><i>@Tool: buscar, reservar, reprogramar</i>"]
+            asstCtrl["AgentController"] --> asstSvc["AgentService<br/><i>Spring AI ChatClient</i>"]
+            guard["AgentGuardrails<br/><i>respuestas de seguridad</i>"]
+            asstTools["FisioVitalAgentTools<br/><i>@Tool: buscar, reservar, reprogramar</i>"]
             convRepo[("ConversationRepository<br/>ChatMessageRepository")]
             asstSvc --> guard
             asstSvc --> convRepo
@@ -106,6 +106,6 @@ con las entidades de `model/`. Ningún controller usa repositorios ni mappers, y
 solo `*ResponseDTO`. Las peticiones pasan primero por **Security/JWT**, que valida el token y el rol, y cualquier
 error termina en el **GlobalExceptionHandler**, que responde con el código HTTP adecuado y un mensaje i18n. El
 **ReminderScheduler** se ejecuta solo cada cierto intervalo para crear los recordatorios de US13. En el módulo `Assistant*`,
-el **AssistantService** aplica primero las respuestas fijas de seguridad (**AssistantGuardrails**) y luego consulta a
-Gemini con Spring AI; cuando el paciente quiere reservar o reprogramar, Gemini invoca las **AssistantTools**, que
+el **AgentService** aplica primero las respuestas fijas de seguridad (**AgentGuardrails**) y luego consulta a
+Gemini con Spring AI; cuando el paciente quiere reservar o reprogramar, Gemini invoca las **FisioVitalAgentTools**, que
 reutilizan los services existentes y respetan las mismas reglas de negocio.

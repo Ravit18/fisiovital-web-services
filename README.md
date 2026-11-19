@@ -121,6 +121,38 @@ modelos para cuentas nuevas), elige otro *Flash-Lite* o *Flash* de la lista:
 curl -H "x-goog-api-key: TU_KEY" https://generativelanguage.googleapis.com/v1beta/models
 ```
 
+### Cómo funciona el asistente (Spring AI)
+
+```
+Tu app                 ChatClient        Advisors                              ChatModel         Proveedor
+AgentController → AgentService → MessageChatMemoryAdvisor (memoria) → Gemini ChatModel → Google Gemini
+                       (API fluida)      GuardrailAdvisor (seguridad)              ⇅
+                                         KnowledgeAdvisor (RAG)              Tools (@Tool en FisioVitalAgentTools)
+                                            ⇅              ⇅
+                                  DatabaseChatMemory   VectorStore (KnowledgeBase)
+```
+
+La petición pasa por los advisors antes de llegar al modelo; el modelo puede pedir tools durante la respuesta y
+devuelve un `AgentAnswer` (salida estructurada).
+
+| Concepto Spring AI | Dónde está |
+|---|---|
+| `ChatClient` + `ChatModel` | `AgentConfig` arma el `ChatClient` con sus advisors y el cliente de Gemini (`ChatModel` de `spring-ai-starter-model-google-genai`); `AgentService` lo usa en cada mensaje |
+| Prompts (`PromptTemplate`) | `AgentPrompts` renderiza `resources/prompts/assistant-system.st` con `{today}`, `{language}` y `{roleRules}` (`rules-patient.st` / `rules-physiotherapist.st`) |
+| Tool calling | `FisioVitalAgentTools`: 7 `@Tool` (buscar especialistas, planes, horarios, reservar, reprogramar…); las que escriben solo para `PATIENT` |
+| Memoria | `DatabaseChatMemory` (`ChatMemory` sobre la tabla de mensajes, ventana de 20) + `MessageChatMemoryAdvisor`; la conversación expira a los 30 min |
+| Advisors | `GuardrailAdvisor` (orden 100): emergencias y consejos médicos con respuesta fija, sin llamar al modelo. `KnowledgeAdvisor` (orden 200): RAG |
+| Embeddings + VectorStore | `KnowledgeBase` + `AgentConfig`: `SimpleVectorStore` con embeddings `gemini-embedding-001` (`GEMINI_EMBEDDING_MODEL`) de `resources/knowledge/fisiovital-faq.txt` (fragmentos separados por `---`) |
+| Salida estructurada | `AgentAnswer` + `LenientAnswerConverter` (si el modelo no devuelve JSON, usa el texto plano) |
+| MCP | Servidor MCP (`spring-ai-starter-mcp-server-webmvc`) en **`/mcp`** (Streamable HTTP), con el mismo JWT. Herramientas de solo lectura en `agent/mcp/FisioVitalMcpTools`: `listSpecialties`, `findPhysiotherapists`, `getPolicies` |
+
+**Probar MCP:** con el backend corriendo, `npx @modelcontextprotocol/inspector` → *Transport* "Streamable HTTP",
+URL `http://localhost:8080/mcp` y header `Authorization: Bearer <token de /api/v1/auth/sign-in>`. Desde ahí se
+listan y ejecutan las 3 herramientas. Ninguna reserva ni modifica datos.
+
+Para ampliar la base de conocimiento basta con agregar fragmentos al FAQ; se indexan la primera vez que se usa el
+asistente. Si los embeddings fallan, el asistente sigue respondiendo sin RAG.
+
 ## Correo de recordatorios (Gmail) — US13
 
 El recordatorio se envía 24 horas antes de cada sesión, por correo y como notificación en la plataforma. Gmail no
@@ -197,7 +229,7 @@ y, en los casos de error y alternativos, el **mensaje traducido**. `src/test` si
 | `controller/NotificationControllerTest` | US13 | 5 |
 | `controller/AppointmentHistoryControllerTest` | US14–US16 | 9 |
 | `controller/ClinicalNoteControllerTest` | Historia clínica (notas del fisioterapeuta y evolución por sesión) | 13 |
-| `controller/AssistantControllerTest` y `AssistantControllerWithoutKeyTest` | US17–US20 | 17 |
+| `agent/AgentControllerTest` y `AgentControllerWithoutKeyTest` | US17–US20 | 17 |
 | `exception/GlobalExceptionHandlerTest` | Errores 404/405/503 (incluye el 503 de US14) | 3 |
 | `SmokeTest` | Arranque, seguridad, CORS (preflight) y creación del esquema de la BD | 4 |
 
@@ -285,13 +317,21 @@ com.healthdev.fisiovital
 │   ├── request/  Records *RequestDTO: el JSON que entra (con @Valid)
 │   └── response/ Records *ResponseDTO: el JSON que sale hacia el front
 ├── security/     Spring Security y JWT (SecurityConfig, JwtService, JwtAuthenticationFilter)
-├── config/       i18n, Swagger, CORS (CorsConfig) y el cliente de Gemini
-└── exception/    BusinessException y GlobalExceptionHandler
+├── config/       i18n, Swagger y CORS (CorsConfig)
+├── exception/    BusinessException y GlobalExceptionHandler
+└── agent/        Todo el asistente de IA (US17–US20), como el paquete agent/ del ejemplo del curso
+    ├── AgentConfig, AgentController, AgentService, AgentPrompts, AgentMapper
+    ├── dto/      ChatRequest, ChatResponse y AgentAnswer (salida estructurada)
+    ├── tools/    FisioVitalAgentTools: los @Tool que invoca el modelo
+    ├── advisor/  GuardrailAdvisor, AgentGuardrails y KnowledgeAdvisor (RAG)
+    ├── memory/   DatabaseChatMemory (ChatMemory sobre la BD)
+    ├── rag/      KnowledgeBase (Embeddings + VectorStore)
+    └── mcp/      FisioVitalMcpTools (servidor MCP de solo lectura)
 ```
 
 Los módulos del negocio se reconocen por el nombre de la clase: `Auth*` (US01–US03), `Physiotherapist*` /
 `Patient*` (US04–US05), `Availability*` / `Slot*` (US06–US07), `TreatmentPlan*` / `Session*` / `Agenda*`
-(US08–US12), `Notification*` / `ReminderScheduler` (US13), `Appointment*` (US14–US16) y `Assistant*` (US17–US20).
+(US08–US12), `Notification*` / `ReminderScheduler` (US13), `Appointment*` (US14–US16) y el paquete `agent/` (US17–US20).
 
 | Capa | Qué hace | Recibe → entrega |
 |---|---|---|
