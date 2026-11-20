@@ -1,4 +1,10 @@
-package com.healthdev.fisiovital.service;
+package com.healthdev.fisiovital.agent.tools;
+
+import com.healthdev.fisiovital.service.AvailabilityService;
+import com.healthdev.fisiovital.service.BookingRules;
+import com.healthdev.fisiovital.service.PhysiotherapistSearchService;
+import com.healthdev.fisiovital.service.SessionService;
+import com.healthdev.fisiovital.service.TreatmentPlanService;
 
 import com.healthdev.fisiovital.dto.request.BookSessionRequestDTO;
 import com.healthdev.fisiovital.dto.request.RescheduleSessionRequestDTO;
@@ -7,6 +13,8 @@ import com.healthdev.fisiovital.dto.response.SlotResponseDTO;
 import com.healthdev.fisiovital.dto.response.TreatmentPlanResponseDTO;
 import com.healthdev.fisiovital.exception.BusinessException;
 import com.healthdev.fisiovital.model.Specialty;
+import com.healthdev.fisiovital.model.Role;
+import com.healthdev.fisiovital.security.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -19,8 +27,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 /**
@@ -30,7 +41,7 @@ import java.util.stream.IntStream;
  */
 @Component
 @RequiredArgsConstructor
-public class AssistantTools {
+public class FisioVitalAgentTools {
 
     static final int SUGGESTED_PHYSIOS = 3;
     static final int OPTIONS_WHEN_DAY_IS_FULL = 3;
@@ -40,7 +51,9 @@ public class AssistantTools {
     private final TreatmentPlanService treatmentPlanService;
     private final AvailabilityService availabilityService;
     private final SessionService sessionService;
+    private final BookingRules bookingRules;
     private final MessageSource messageSource;
+    private final CurrentUserProvider currentUser;
 
     public record PhysioOption(Long id, String fullName, String specialty, int yearsOfExperience,
                                boolean hasAvailability) {
@@ -95,22 +108,31 @@ public class AssistantTools {
                 .toList();
     }
 
-    @Tool(description = "US19. Horarios libres del fisioterapeuta del plan en una fecha. Si ese dia no hay "
-            + "bloques libres, devuelve los siguientes horarios disponibles para proponerlos.")
+    @Tool(description = "US19. Horarios libres para reservar en el plan en una fecha. Si ese dia no hay "
+            + "bloques libres o la semana ya completo la frecuencia del plan, devuelve los siguientes horarios "
+            + "que si se pueden reservar y un message que explica el motivo.")
     public SlotsResult freeSlotsOnDate(@ToolParam(description = "Id del plan activo") Long planId,
                                        @ToolParam(description = "Fecha en formato AAAA-MM-DD") String date) {
         try {
-            Long physioId = activePlan(planId).physiotherapistId();
+            TreatmentPlanResponseDTO plan = activePlan(planId);
+            Long physioId = plan.physiotherapistId();
             LocalDate day = LocalDate.parse(date);
+            Map<LocalDate, Boolean> fullWeeks = new HashMap<>();
+            Predicate<SlotResponseDTO> bookable = s -> !fullWeeks.computeIfAbsent(
+                    BookingRules.weekStartOf(s.startTime().toLocalDate()),
+                    week -> bookingRules.weekIsFull(plan.id(), plan.frequencyPerWeek(), week, BookingRules.NO_SESSION));
             List<SlotResponseDTO> sameDay = availabilityService.findFreeSlots(physioId, day, day).slots().stream()
                     .filter(s -> s.startTime().toLocalDate().equals(day))
+                    .filter(bookable)
                     .toList();
             if (!sameDay.isEmpty()) {
                 return new SlotsResult(date, true, toOptions(sameDay), null);
             }
             List<SlotResponseDTO> next = availabilityService.findFreeSlots(physioId, day.plusDays(1), null).slots()
-                    .stream().limit(OPTIONS_WHEN_DAY_IS_FULL).toList();
-            String message = next.isEmpty() ? msg("slots.none") : null;
+                    .stream().filter(bookable).limit(OPTIONS_WHEN_DAY_IS_FULL).toList();
+            String message = Boolean.TRUE.equals(fullWeeks.get(BookingRules.weekStartOf(day)))
+                    ? msg("plan.frequency.exceeded", plan.frequencyPerWeek())
+                    : next.isEmpty() ? msg("slots.none") : null;
             return new SlotsResult(date, false, toOptions(next), message);
         } catch (BusinessException e) {
             return new SlotsResult(date, false, List.of(), msg(e));
@@ -144,6 +166,9 @@ public class AssistantTools {
     public ActionResult bookSession(@ToolParam(description = "Id del plan activo") Long planId,
                                     @ToolParam(description = "Id del bloque libre elegido") Long slotId) {
         try {
+            if (!isPatient()) {
+                return new ActionResult(false, msg("assistant.patient.only"), null);
+            }
             return new ActionResult(true, null, toSessionOption(treatmentPlanService.bookSession(planId, new BookSessionRequestDTO(slotId))));
         } catch (BusinessException e) {
             return new ActionResult(false, msg(e), null);
@@ -164,10 +189,21 @@ public class AssistantTools {
     public ActionResult rescheduleSession(@ToolParam(description = "Id de la sesion a mover") Long sessionId,
                                           @ToolParam(description = "Id del nuevo bloque libre") Long newSlotId) {
         try {
+            if (!isPatient()) {
+                return new ActionResult(false, msg("assistant.patient.only"), null);
+            }
             return new ActionResult(true, null, toSessionOption(sessionService.reschedule(sessionId, new RescheduleSessionRequestDTO(newSlotId))));
         } catch (BusinessException e) {
             return new ActionResult(false, msg(e), null);
         }
+    }
+
+    /**
+     * Control dentro de las tools que escriben: aunque el asistente solo entrega las tools a pacientes,
+     * cada tool vuelve a verificar el rol del usuario del token antes de reservar o mover una sesion.
+     */
+    private boolean isPatient() {
+        return currentUser.get().role() == Role.PATIENT;
     }
 
     private TreatmentPlanResponseDTO activePlan(Long planId) {
@@ -197,8 +233,8 @@ public class AssistantTools {
         return time.format(DateTimeFormatter.ofPattern("EEEE dd/MM/yyyy HH:mm", LocaleContextHolder.getLocale()));
     }
 
-    private String msg(String key) {
-        return messageSource.getMessage(key, null, key, LocaleContextHolder.getLocale());
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, key, LocaleContextHolder.getLocale());
     }
 
     private String msg(BusinessException e) {

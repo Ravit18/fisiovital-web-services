@@ -2550,7 +2550,7 @@
                 "messages"
               ]
             },
-            "description": "El paciente abre una conversacion (respuesta fija, sin Gemini) y el fisioterapeuta intenta continuarla: 404. El otro error de US17 (Gemini caido -> 503) solo se puede simular en AssistantControllerTest."
+            "description": "El paciente abre una conversacion (respuesta fija, sin Gemini) y el fisioterapeuta intenta continuarla: 404. El otro error de US17 (Gemini caido -> 503) solo se puede simular en AgentControllerTest."
           }
         },
         {

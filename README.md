@@ -5,6 +5,8 @@ PostgreSQL, Spring AI (Google Gemini) y Swagger (OpenAPI). Cubre las **20 User S
 
 > Para instalarlo en otra PC, sigue en orden las secciones **Requisitos**, **0. Configurar variables locales**,
 > **1. Crear la base de datos** y **2. Abrir y ejecutar en IntelliJ IDEA**.
+>
+> En producción: https://fisiovital-web-services.onrender.com/swagger-ui/index.html (ver **Despliegue** al final).
 
 ## Qué incluye
 
@@ -68,6 +70,10 @@ Los diagramas están en Mermaid, así que GitHub los dibuja directamente al abri
    (`spring.config.import=optional:file:.env[.properties]`), y Docker Compose también.
 
 ```properties
+# Obligatoria: clave para firmar los tokens JWT (sin ella la app no arranca). Genérala con: openssl rand -base64 64
+JWT_SECRET=pega-aqui-la-clave-generada
+# Opcional: duración del token en minutos (por defecto 1440 = 24 h)
+JWT_EXPIRATION_MINUTES=1440
 GEMINI_API_KEY=tu-api-key-de-gemini
 GEMINI_MODEL=gemini-3.5-flash-lite
 MAIL_USERNAME=tu.correo@gmail.com
@@ -114,6 +120,38 @@ modelos para cuentas nuevas), elige otro *Flash-Lite* o *Flash* de la lista:
 ```bash
 curl -H "x-goog-api-key: TU_KEY" https://generativelanguage.googleapis.com/v1beta/models
 ```
+
+### Cómo funciona el asistente (Spring AI)
+
+```
+Tu app                 ChatClient        Advisors                              ChatModel         Proveedor
+AgentController → AgentService → MessageChatMemoryAdvisor (memoria) → Gemini ChatModel → Google Gemini
+                       (API fluida)      GuardrailAdvisor (seguridad)              ⇅
+                                         KnowledgeAdvisor (RAG)              Tools (@Tool en FisioVitalAgentTools)
+                                            ⇅              ⇅
+                                  DatabaseChatMemory   VectorStore (KnowledgeBase)
+```
+
+La petición pasa por los advisors antes de llegar al modelo; el modelo puede pedir tools durante la respuesta y
+devuelve un `AgentAnswer` (salida estructurada).
+
+| Concepto Spring AI | Dónde está |
+|---|---|
+| `ChatClient` + `ChatModel` | `AgentConfig` arma el `ChatClient` con sus advisors y el cliente de Gemini (`ChatModel` de `spring-ai-starter-model-google-genai`); `AgentService` lo usa en cada mensaje |
+| Prompts (`PromptTemplate`) | `AgentPrompts` renderiza `resources/prompts/assistant-system.st` con `{today}`, `{language}` y `{roleRules}` (`rules-patient.st` / `rules-physiotherapist.st`) |
+| Tool calling | `FisioVitalAgentTools`: 7 `@Tool` (buscar especialistas, planes, horarios, reservar, reprogramar…); las que escriben solo para `PATIENT` |
+| Memoria | `DatabaseChatMemory` (`ChatMemory` sobre la tabla de mensajes, ventana de 20) + `MessageChatMemoryAdvisor`; la conversación expira a los 30 min |
+| Advisors | `GuardrailAdvisor` (orden 100): emergencias y consejos médicos con respuesta fija, sin llamar al modelo. `KnowledgeAdvisor` (orden 200): RAG |
+| Embeddings + VectorStore | `KnowledgeBase` + `AgentConfig`: `SimpleVectorStore` con embeddings `gemini-embedding-001` (`GEMINI_EMBEDDING_MODEL`) de `resources/knowledge/fisiovital-faq.txt` (fragmentos separados por `---`) |
+| Salida estructurada | `AgentAnswer` + `LenientAnswerConverter` (si el modelo no devuelve JSON, usa el texto plano) |
+| MCP | Servidor MCP (`spring-ai-starter-mcp-server-webmvc`) en **`/mcp`** (Streamable HTTP), con el mismo JWT. Herramientas de solo lectura en `agent/mcp/FisioVitalMcpTools`: `listSpecialties`, `findPhysiotherapists`, `getPolicies` |
+
+**Probar MCP:** con el backend corriendo, `npx @modelcontextprotocol/inspector` → *Transport* "Streamable HTTP",
+URL `http://localhost:8080/mcp` y header `Authorization: Bearer <token de /api/v1/auth/sign-in>`. Desde ahí se
+listan y ejecutan las 3 herramientas. Ninguna reserva ni modifica datos.
+
+Para ampliar la base de conocimiento basta con agregar fragmentos al FAQ; se indexan la primera vez que se usa el
+asistente. Si los embeddings fallan, el asistente sigue respondiendo sin RAG.
 
 ## Correo de recordatorios (Gmail) — US13
 
@@ -186,13 +224,14 @@ y, en los casos de error y alternativos, el **mensaje traducido**. `src/test` si
 | `controller/PhysiotherapistControllerTest` | US04–US05 | 8 |
 | `controller/AvailabilityControllerTest` | US06–US07 | 6 |
 | `controller/AgendaControllerTest` | US08 | 3 |
-| `controller/TreatmentPlanControllerTest` | US09–US10 y CRUD del plan | 15 |
-| `controller/SessionControllerTest` | US11–US12 | 6 |
+| `controller/TreatmentPlanControllerTest` | US09–US10, CRUD del plan, choque de horario y frecuencia semanal | 18 |
+| `controller/SessionControllerTest` | US11–US12 (incluye choque de horario y frecuencia al reprogramar) | 9 |
 | `controller/NotificationControllerTest` | US13 | 5 |
 | `controller/AppointmentHistoryControllerTest` | US14–US16 | 9 |
-| `controller/AssistantControllerTest` y `AssistantControllerWithoutKeyTest` | US17–US20 | 17 |
+| `controller/ClinicalNoteControllerTest` | Historia clínica (notas del fisioterapeuta y evolución por sesión) | 13 |
+| `agent/AgentControllerTest` y `AgentControllerWithoutKeyTest` | US17–US20 | 17 |
 | `exception/GlobalExceptionHandlerTest` | Errores 404/405/503 (incluye el 503 de US14) | 3 |
-| `SmokeTest` | Arranque, seguridad y creación del esquema de la BD | 3 |
+| `SmokeTest` | Arranque, seguridad, CORS (preflight) y creación del esquema de la BD | 4 |
 
 ## 3. Probar con Postman
 
@@ -222,6 +261,16 @@ Usa la API real, así que las citas quedan en fechas futuras y pasan a `COMPLETE
 ejecutar de nuevo sin duplicar nada. Las cuentas, la contraseña y los diagnósticos están al inicio del script; los
 correos son `@example.com`, así que los recordatorios por Gmail no le llegan a nadie real.
 
+**Historia clínica de demostración.** La API no permite crear horarios en el pasado, así que la historia (sesiones
+de las semanas pasadas con su nota de evolución, más una nota de antecedentes por paciente) se carga con SQL.
+Primero arranca el backend una vez (crea `clinical_notes`) y corre `seed-demo.ps1`; luego:
+
+```bash
+psql -h localhost -U postgres -d fisiovital -f scripts/seed-history.sql
+```
+
+Agrega 14 sesiones pasadas con nota a los 5 planes demo y renumera las citas futuras. Si ya se cargó, no hace nada.
+
 ## Endpoints
 
 | US | Método | Endpoint | Rol |
@@ -247,6 +296,7 @@ correos son `@example.com`, así que los recordatorios por Gmail no le llegan a 
 | US14 | GET | `/api/v1/appointments/me?page=0&size=20` | Paciente |
 | US15 | GET | `/api/v1/appointments/physiotherapist/me` | Fisioterapeuta |
 | US16 | GET | `/api/v1/appointments/physiotherapist/me?patientName=` | Fisioterapeuta |
+| Historia clínica | GET / POST | `/api/v1/patients/{patientId}/clinical-notes` `{sessionId?, text}` | Fisioterapeuta que trata al paciente |
 | US17–US20 | POST | `/api/v1/assistant/messages` `{conversationId?, message}` | Autenticado (reservar y reprogramar: Paciente) |
 
 Especialidades válidas: `DEPORTIVA`, `COLUMNA_POSTURA`, `GERIATRICA`, `PEDIATRICA`, `POSTQUIRURGICA`, `NEUROLOGICA`.
@@ -267,13 +317,21 @@ com.healthdev.fisiovital
 │   ├── request/  Records *RequestDTO: el JSON que entra (con @Valid)
 │   └── response/ Records *ResponseDTO: el JSON que sale hacia el front
 ├── security/     Spring Security y JWT (SecurityConfig, JwtService, JwtAuthenticationFilter)
-├── config/       i18n, Swagger, CORS (CorsConfig) y el cliente de Gemini
-└── exception/    BusinessException y GlobalExceptionHandler
+├── config/       i18n, Swagger y CORS (CorsConfig)
+├── exception/    BusinessException y GlobalExceptionHandler
+└── agent/        Todo el asistente de IA (US17–US20), como el paquete agent/ del ejemplo del curso
+    ├── AgentConfig, AgentController, AgentService, AgentPrompts, AgentMapper
+    ├── dto/      ChatRequest, ChatResponse y AgentAnswer (salida estructurada)
+    ├── tools/    FisioVitalAgentTools: los @Tool que invoca el modelo
+    ├── advisor/  GuardrailAdvisor, AgentGuardrails y KnowledgeAdvisor (RAG)
+    ├── memory/   DatabaseChatMemory (ChatMemory sobre la BD)
+    ├── rag/      KnowledgeBase (Embeddings + VectorStore)
+    └── mcp/      FisioVitalMcpTools (servidor MCP de solo lectura)
 ```
 
 Los módulos del negocio se reconocen por el nombre de la clase: `Auth*` (US01–US03), `Physiotherapist*` /
 `Patient*` (US04–US05), `Availability*` / `Slot*` (US06–US07), `TreatmentPlan*` / `Session*` / `Agenda*`
-(US08–US12), `Notification*` / `ReminderScheduler` (US13), `Appointment*` (US14–US16) y `Assistant*` (US17–US20).
+(US08–US12), `Notification*` / `ReminderScheduler` (US13), `Appointment*` (US14–US16) y el paquete `agent/` (US17–US20).
 
 | Capa | Qué hace | Recibe → entrega |
 |---|---|---|
@@ -339,3 +397,52 @@ docker compose --profile full up --build
 ```
 
 Levanta PostgreSQL y la API juntas. Las variables de `.env` (`GEMINI_API_KEY`, `MAIL_USERNAME`, `MAIL_PASSWORD`...) se pasan solas al contenedor.
+
+## Despliegue
+
+| Producto | Servicio | URL |
+|---|---|---|
+| Web Services | Render (Docker) | https://fisiovital-web-services.onrender.com/swagger-ui/index.html |
+| Web App | Netlify | https://fisiovitalupc.netlify.app |
+| Base de datos | Supabase (PostgreSQL, Session pooler) | — |
+
+Guía detallada (Supabase, seguridad RLS, Render, Netlify): [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md).
+
+Pipeline CI/CD en `.github/workflows/ci-cd.yml` (GitHub Actions): **Commit → Build → Test → Deploy**.
+
+- En cada push o Pull Request a `develop` o `main`: `./mvnw verify` (las pruebas usan H2, no necesitan BD) y
+  construcción de la imagen Docker.
+- Solo en push a `main` y si todo pasó: llama al Deploy Hook de Render (secreto `RENDER_DEPLOY_HOOK_URL`).
+  `render.yaml` tiene `autoDeploy: false`, así que Render despliega solo cuando el pipeline lo pide.
+- Las variables de producción (`DB_*`, `JWT_SECRET`, `GEMINI_API_KEY`, `MAIL_*`, `CORS_ALLOWED_ORIGINS`) se editan en
+  Render → Environment, no en el código. Al guardar, elegir **Save and deploy**.
+- `config/SupabaseSecurityConfig` activa RLS en todas las tablas al arrancar (la Data API pública de Supabase no ve
+  nada; la app entra como dueña de las tablas y no se ve afectada).
+- Plan gratis: Render se duerme tras ~15 min sin uso (la primera petición tarda hasta ~1,5 min) y Supabase pausa el
+  proyecto tras 7 días sin actividad.
+
+## Cómo hacer cambios (GitFlow)
+
+```
+feat/mi-cambio ──PR──► develop ──PR──► main ──► se despliega solo en Render
+                  (corre pruebas)
+```
+
+1. Partir de `develop` actualizado y crear tu rama:
+   ```bash
+   git switch develop
+   git pull
+   git switch -c feat/nombre-del-cambio
+   ```
+2. Hacer los cambios y probarlos: `./mvnw spring-boot:run` y `./mvnw test`.
+   - Ojo: si tu `.env` apunta a Supabase, el backend local usa **la misma base que producción**.
+   - Si cambias entidades, Hibernate actualiza las tablas al arrancar (`ddl-auto=update`).
+3. Revisar con `git status` que no aparezcan `.env` ni `target/`. Luego:
+   ```bash
+   git add .
+   git commit -m "feat: descripción corta"
+   git push -u origin feat/nombre-del-cambio
+   ```
+4. En GitHub, abrir un PR hacia `develop`. Si Actions sale en verde, **Merge**.
+5. Para publicar, abrir un PR de `develop` hacia `main` y hacer **Merge**. En ~5 min está en Render.
+6. Si Actions sale en rojo no se despliega nada (sigue la versión anterior): abrir el run para ver el error.

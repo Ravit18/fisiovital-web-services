@@ -71,6 +71,17 @@ class AvailabilityControllerTest extends IntegrationTestBase {
     }
 
     @Test
+    void us07_error_bloquesQueNoSonDeUnaHora400() throws Exception {
+        String physio = newPhysioToken();
+
+        mockMvc.perform(authed(post("/api/v1/physiotherapists/me/slots"), physio)
+                        .content("""
+                                {"date":"%s","startTime":"08:00","endTime":"12:00","durationMinutes":45}
+                                """.formatted(todayPlusDays(3))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void us07_error_fechaPasada422() throws Exception {
         String physio = newPhysioToken();
 

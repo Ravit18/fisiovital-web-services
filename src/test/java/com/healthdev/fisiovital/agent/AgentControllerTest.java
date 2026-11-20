@@ -1,10 +1,13 @@
-package com.healthdev.fisiovital.controller;
+package com.healthdev.fisiovital.agent;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthdev.fisiovital.IntegrationTestBase;
 import com.healthdev.fisiovital.model.Role;
 import com.healthdev.fisiovital.security.UserPrincipal;
-import com.healthdev.fisiovital.service.AssistantTools;
+import com.healthdev.fisiovital.agent.dto.AgentAnswer;
+import com.healthdev.fisiovital.agent.tools.FisioVitalAgentTools;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -36,7 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * deterministas; las herramientas (tool calling) se prueban contra la base de datos real con un paciente
  * autenticado.
  */
-class AssistantControllerTest extends IntegrationTestBase {
+class AgentControllerTest extends IntegrationTestBase {
 
     private static final String UNAVAILABLE = "El asistente no está disponible";
 
@@ -44,7 +47,7 @@ class AssistantControllerTest extends IntegrationTestBase {
     private ChatModel chatModel;
 
     @Autowired
-    private AssistantTools tools;
+    private FisioVitalAgentTools tools;
 
     @AfterEach
     void clearContext() {
@@ -99,11 +102,11 @@ class AssistantControllerTest extends IntegrationTestBase {
         }
         actAsPatient();
 
-        List<AssistantTools.PhysioOption> suggested = tools.searchPhysiotherapists("COLUMNA_POSTURA");
+        List<FisioVitalAgentTools.PhysioOption> suggested = tools.searchPhysiotherapists("COLUMNA_POSTURA");
 
         assertThat(suggested).hasSize(3);
         assertThat(suggested).allMatch(p -> p.specialty().equals("COLUMNA_POSTURA"));
-        assertThat(suggested).extracting(AssistantTools.PhysioOption::yearsOfExperience)
+        assertThat(suggested).extracting(FisioVitalAgentTools.PhysioOption::yearsOfExperience)
                 .isSortedAccordingTo((a, b) -> Integer.compare(b, a));
     }
 
@@ -132,9 +135,9 @@ class AssistantControllerTest extends IntegrationTestBase {
         Fixture f = patientWithPlanAndSlots(4);
         actAs(f.patient());
 
-        AssistantTools.PlanOption plan = tools.myActivePlans().get(0);
-        AssistantTools.SlotsResult slots = tools.freeSlotsOnDate(plan.planId(), todayPlusDays(4));
-        AssistantTools.ActionResult booked = tools.bookSession(plan.planId(), slots.slots().get(0).slotId());
+        FisioVitalAgentTools.PlanOption plan = tools.myActivePlans().get(0);
+        FisioVitalAgentTools.SlotsResult slots = tools.freeSlotsOnDate(plan.planId(), todayPlusDays(4));
+        FisioVitalAgentTools.ActionResult booked = tools.bookSession(plan.planId(), slots.slots().get(0).slotId());
 
         assertThat(slots.requestedDateHasSlots()).isTrue();
         assertThat(booked.success()).isTrue();
@@ -146,11 +149,25 @@ class AssistantControllerTest extends IntegrationTestBase {
         Fixture f = patientWithPlanAndSlots(5);
         actAs(f.patient());
 
-        AssistantTools.SlotsResult result = tools.freeSlotsOnDate(f.planId(), todayPlusDays(4));
+        FisioVitalAgentTools.SlotsResult result = tools.freeSlotsOnDate(f.planId(), todayPlusDays(4));
 
         assertThat(result.requestedDateHasSlots()).isFalse();
         assertThat(result.slots()).isNotEmpty();
         assertThat(result.slots().get(0).start()).startsWith(todayPlusDays(5));
+    }
+
+    @Test
+    void us19_error_weekAlreadyFull_doesNotOfferSlotsOfThatWeek() throws Exception {
+        Fixture f = patientWithPlanAndSlots(4); // plan de 2 sesiones por semana
+        bookSession(f.patientToken(), f.planId(), f.slotIds().get(0));
+        bookSession(f.patientToken(), f.planId(), f.slotIds().get(1));
+        actAs(f.patient());
+
+        FisioVitalAgentTools.SlotsResult result = tools.freeSlotsOnDate(f.planId(), todayPlusDays(4));
+
+        assertThat(result.requestedDateHasSlots()).isFalse();
+        assertThat(result.slots()).isEmpty();
+        assertThat(result.message()).isEqualTo("Tu plan permite 2 sesión(es) por semana y esa semana ya está completa");
     }
 
     @Test
@@ -167,8 +184,11 @@ class AssistantControllerTest extends IntegrationTestBase {
         List<String> sent = lastPrompt().getInstructions().stream()
                 .filter(m -> m.getMessageType() != MessageType.SYSTEM)
                 .map(Message::getText).toList();
-        assertThat(sent).containsExactly("Resérvame el jueves en la tarde",
-                "Tengo estos horarios: 1. jueves 16:00 2. jueves 17:00 3. jueves 18:00", "el segundo");
+        // El historial viene limpio (sin JSON) y el ultimo mensaje lleva ademas las instrucciones de formato.
+        assertThat(sent).hasSize(3);
+        assertThat(sent.subList(0, 2)).containsExactly("Resérvame el jueves en la tarde",
+                "Tengo estos horarios: 1. jueves 16:00 2. jueves 17:00 3. jueves 18:00");
+        assertThat(sent.get(2)).startsWith("el segundo");
     }
 
     // ---------- US20 - Reprogramar sesion mediante el asistente ----------
@@ -179,8 +199,8 @@ class AssistantControllerTest extends IntegrationTestBase {
         bookSession(f.patientToken(), f.planId(), f.slotIds().get(0));
         actAs(f.patient());
 
-        AssistantTools.SessionOption session = tools.myUpcomingSessions().sessions().get(0);
-        AssistantTools.ActionResult moved = tools.rescheduleSession(session.sessionId(), f.slotIds().get(2));
+        FisioVitalAgentTools.SessionOption session = tools.myUpcomingSessions().sessions().get(0);
+        FisioVitalAgentTools.ActionResult moved = tools.rescheduleSession(session.sessionId(), f.slotIds().get(2));
 
         assertThat(moved.success()).isTrue();
         assertThat(moved.session().start()).isNotEqualTo(session.start());
@@ -192,11 +212,11 @@ class AssistantControllerTest extends IntegrationTestBase {
         bookSession(f.patientToken(), f.planId(), f.slotIds().get(1));
         actAs(f.patient());
 
-        AssistantTools.SlotsResult result = tools.nearestFreeSlots(f.planId(), todayPlusDays(4) + "T09:00");
+        FisioVitalAgentTools.SlotsResult result = tools.nearestFreeSlots(f.planId(), todayPlusDays(4) + "T09:00");
 
         assertThat(result.requestedDateHasSlots()).isFalse();
         assertThat(result.slots()).hasSize(2);
-        assertThat(result.slots()).extracting(AssistantTools.SlotOption::start)
+        assertThat(result.slots()).extracting(FisioVitalAgentTools.SlotOption::start)
                 .containsExactly(todayPlusDays(4) + "T08:00", todayPlusDays(4) + "T10:00");
     }
 
@@ -205,7 +225,7 @@ class AssistantControllerTest extends IntegrationTestBase {
         JsonNode patient = signUpPatient("Sin Sesiones " + uniq(), "sin." + uniq() + "@correo.com");
         actAs(patient);
 
-        AssistantTools.UpcomingResult result = tools.myUpcomingSessions();
+        FisioVitalAgentTools.UpcomingResult result = tools.myUpcomingSessions();
 
         assertThat(result.sessions()).isEmpty();
         assertThat(result.message()).isEqualTo("No tienes sesiones reservadas para reprogramar");
@@ -236,6 +256,26 @@ class AssistantControllerTest extends IntegrationTestBase {
                         .content(body(null, "What medication should I take?")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.startsWith("I do not give medical advice")));
+    }
+
+    // ---------- Control: las tools que escriben verifican el rol del token ----------
+
+    @Test
+    void control_physiotherapistCannotBookOrRescheduleThroughTools() throws Exception {
+        Fixture f = patientWithPlanAndSlots(4);
+        JsonNode physio = newPhysio("DEPORTIVA");
+        UserPrincipal principal = new UserPrincipal(physio.get("userId").asLong(), physio.get("email").asText(),
+                Role.PHYSIOTHERAPIST);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                principal, null, List.of(new SimpleGrantedAuthority("ROLE_PHYSIOTHERAPIST"))));
+        LocaleContextHolder.setLocale(ES);
+
+        FisioVitalAgentTools.ActionResult booked = tools.bookSession(f.planId(), f.slotIds().get(0));
+        FisioVitalAgentTools.ActionResult moved = tools.rescheduleSession(1L, f.slotIds().get(1));
+
+        assertThat(booked.success()).isFalse();
+        assertThat(booked.message()).isEqualTo("Solo un paciente puede reservar o reprogramar sesiones");
+        assertThat(moved.success()).isFalse();
     }
 
     // ---------- Helpers ----------
@@ -269,7 +309,16 @@ class AssistantControllerTest extends IntegrationTestBase {
 
     private void modelReplies(String text) {
         when(chatModel.call(any(Prompt.class)))
-                .thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage(text)))));
+                .thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage(structured(text))))));
+    }
+
+    /** Gemini responde con salida estructurada: {"reply": "..."}. */
+    private static String structured(String text) {
+        try {
+            return new ObjectMapper().writeValueAsString(new AgentAnswer(text));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private Prompt lastPrompt() {

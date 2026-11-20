@@ -1,4 +1,4 @@
-package com.healthdev.fisiovital.controller;
+package com.healthdev.fisiovital.agent;
 
 import com.healthdev.fisiovital.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** US17 (error) - Sin GEMINI_API_KEY la aplicacion arranca igual y el asistente responde 503. */
 @TestPropertySource(properties = "app.ai.gemini.api-key=")
-class AssistantControllerWithoutKeyTest extends IntegrationTestBase {
+class AgentControllerWithoutKeyTest extends IntegrationTestBase {
 
     @Test
     void withoutApiKey_appStartsAndAssistantReturns503() throws Exception {

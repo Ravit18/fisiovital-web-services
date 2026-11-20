@@ -1,0 +1,31 @@
+Cancelacion de sesiones: el paciente puede cancelar una sesion sin penalidad hasta 24 horas antes. Con menos de 24 horas de anticipacion la cancelacion queda registrada como cancelacion tardia.
+---
+Reprogramacion de sesiones: se puede mover una sesion reservada a otro horario libre del mismo fisioterapeuta. Si el cambio se hace con menos de 24 horas de anticipacion queda marcado como cambio tardio.
+---
+Duracion de las sesiones: cada sesion de fisioterapia dura 60 minutos.
+---
+Planes de tratamiento: un plan de tratamiento tiene entre 1 y 30 sesiones. Solo puede haber un plan activo por especialista. Las sesiones se reservan dentro del plan activo, en los horarios libres del fisioterapeuta a cargo.
+---
+Recordatorios: el paciente recibe un recordatorio por correo 24 horas antes de cada sesion.
+---
+Especialidades disponibles: deportiva, columna y postura, geriatrica, pediatrica, postquirurgica y neurologica. El asistente puede recomendar fisioterapeutas de una especialidad segun la zona o molestia que describa el paciente, ordenados por anios de experiencia.
+---
+Alcance del asistente: el asistente resuelve dudas sobre la plataforma y sus politicas, recomienda especialistas y, a pacientes, ayuda a reservar y reprogramar sesiones. No da diagnosticos, no indica tratamientos medicos ni recomienda medicamentos. Ante sintomas de emergencia se debe acudir de inmediato a un servicio de urgencias.
+---
+Frecuencia del plan: cada plan indica cuantas sesiones por semana permite. Si esa semana ya esta completa no se puede reservar otra sesion en ella. Cuando se reservaron todas las sesiones del plan ya no se pueden agregar mas.
+---
+Cruces de horario: un paciente no puede tener dos sesiones reservadas en el mismo horario. Si un horario acaba de ser reservado por otra persona, hay que elegir otro.
+---
+Sesiones pasadas: no se puede cancelar ni reprogramar una sesion que ya ocurrio.
+---
+Disponibilidad de los fisioterapeutas: cada fisioterapeuta publica sus horarios en bloques de 60 minutos y no puede publicar horarios en fechas pasadas ni bloques que se crucen. Si no hay horarios en la semana consultada, se muestran los de la semana siguiente.
+---
+Historia clinica: el fisioterapeuta registra la evolucion de cada sesion que atendio, solo cuando la sesion ya empezo y nunca de una sesion cancelada. Solo puede ver la historia clinica de los pacientes que trata. Cada nota tiene como maximo 1000 caracteres.
+---
+Notificaciones: el fisioterapeuta recibe un aviso cuando un paciente cancela o reprograma una sesion. El paciente recibe un recordatorio con el nombre del fisioterapeuta, la fecha y la hora de la sesion.
+---
+Cuenta y acceso: la contrasena debe tener al menos 8 caracteres, una mayuscula y un numero. El telefono tiene 9 digitos. Los fisioterapeutas se registran con su numero de colegiatura. Tras varios intentos fallidos de inicio de sesion la cuenta se bloquea 15 minutos.
+---
+Conversacion con el asistente: el asistente recuerda los mensajes de la conversacion actual. Si pasan 30 minutos sin actividad se inicia una conversacion nueva. Cada mensaje puede tener hasta 1000 caracteres.
+---
+Emergencias: ante sintomas de emergencia (por ejemplo dolor de pecho, dificultad para respirar o perdida de fuerza repentina) hay que acudir de inmediato a emergencias o llamar al SAMU (106); no se debe esperar una cita de fisioterapia.
