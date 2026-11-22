@@ -1,0 +1,15 @@
+com\healthdev\fisiovital\controller\AssistantControllerWithoutKeyTest.class
+com\healthdev\fisiovital\controller\ClinicalNoteControllerTest.class
+com\healthdev\fisiovital\controller\TreatmentPlanControllerTest.class
+com\healthdev\fisiovital\exception\GlobalExceptionHandlerTest.class
+com\healthdev\fisiovital\controller\AvailabilityControllerTest.class
+com\healthdev\fisiovital\controller\AppointmentHistoryControllerTest.class
+com\healthdev\fisiovital\controller\AgendaControllerTest.class
+com\healthdev\fisiovital\controller\AssistantControllerTest.class
+com\healthdev\fisiovital\SmokeTest.class
+com\healthdev\fisiovital\controller\SessionControllerTest.class
+com\healthdev\fisiovital\controller\AuthControllerTest.class
+com\healthdev\fisiovital\controller\NotificationControllerTest.class
+com\healthdev\fisiovital\controller\PhysiotherapistControllerTest.class
+com\healthdev\fisiovital\IntegrationTestBase.class
+com\healthdev\fisiovital\controller\AssistantControllerTest$Fixture.class

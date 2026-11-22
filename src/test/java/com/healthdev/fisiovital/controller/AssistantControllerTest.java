@@ -21,12 +21,14 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -53,6 +55,37 @@ class AssistantControllerTest extends IntegrationTestBase {
     }
 
     // ---------- US17 - Consultar dudas al asistente ----------
+
+    @Test
+    void audioTranscription_returnsTextWithoutSendingItToTheAssistant() throws Exception {
+        modelReplies("Quiero reservar una sesión esta semana");
+        MockMultipartFile audio = new MockMultipartFile("audio", "voice.webm", "audio/webm",
+                new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart("/api/v1/assistant/transcriptions")
+                        .file(audio)
+                        .header("Authorization", "Bearer " + newPatientToken())
+                        .header("Accept-Language", "es-419"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transcript").value("Quiero reservar una sesión esta semana"));
+
+        assertThat(lastPrompt().getInstructions()).anyMatch(message ->
+                message.getMessageType() == MessageType.USER && message.getText().contains("Transcribe"));
+    }
+
+    @Test
+    void audioTranscription_emptyFile_returnsBadRequest() throws Exception {
+        MockMultipartFile audio = new MockMultipartFile("audio", "voice.webm", "audio/webm", new byte[0]);
+
+        mockMvc.perform(multipart("/api/v1/assistant/transcriptions")
+                        .file(audio)
+                        .header("Authorization", "Bearer " + newPatientToken())
+                        .header("Accept-Language", "es-419"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("No se recibió audio para transcribir"));
+
+        verify(chatModel, never()).call(any(Prompt.class));
+    }
 
     @Test
     void us17_success_answersCancellationPolicyUsingFisioVitalRules() throws Exception {

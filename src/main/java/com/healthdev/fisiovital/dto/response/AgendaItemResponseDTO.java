@@ -3,7 +3,8 @@ package com.healthdev.fisiovital.dto.response;
 import java.time.LocalDateTime;
 
 /** status: FREE, BOOKED o FREE_CANCELLED (bloque liberado porque el paciente cancelo). */
-public record AgendaItemResponseDTO(
+public record
+AgendaItemResponseDTO(
         Long slotId,
         LocalDateTime startTime,
         LocalDateTime endTime,
