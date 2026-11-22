@@ -2,16 +2,20 @@ package com.healthdev.fisiovital.agent;
 
 import com.healthdev.fisiovital.agent.dto.ChatRequest;
 import com.healthdev.fisiovital.agent.dto.ChatResponse;
+import com.healthdev.fisiovital.agent.dto.AssistantTranscriptionResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/assistant")
@@ -21,11 +25,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class AgentController {
 
     private final AgentService agentService;
+    private final AssistantTranscriptionService transcriptionService;
 
     @PostMapping("/messages")
     @Operation(summary = "US17-US20 - Enviar un mensaje al asistente (dudas, recomendacion de especialista, "
             + "reservar y reprogramar sesiones)")
     public ResponseEntity<ChatResponse> ask(@Valid @RequestBody ChatRequest request) {
         return ResponseEntity.ok(agentService.ask(request));
+    }
+
+    @PostMapping(value = "/transcriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Transcribir audio para completar el cuadro de mensaje del asistente")
+    public ResponseEntity<AssistantTranscriptionResponse> transcribe(@RequestParam("audio") MultipartFile audio) {
+        return ResponseEntity.ok(new AssistantTranscriptionResponse(transcriptionService.transcribe(audio)));
     }
 }
