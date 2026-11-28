@@ -10,14 +10,21 @@
 
     Los correos son @example.com (dominio reservado): los recordatorios de US13 no le llegan a nadie real.
 
+    -FocusDates (por defecto los días de la exposición, 03/12 y 05/12 de 2026) tienen horarios de día completo,
+    también el sábado en la tarde, y citas reservadas a propósito esas fechas; quedan cupos libres alrededor para
+    reservar o reprogramar en vivo. Valeria Ríos no tiene planes: sirve para mostrar que el asistente crea el plan
+    y reserva desde el chat.
+
 .EXAMPLE
     .\scripts\seed-demo.ps1
     .\scripts\seed-demo.ps1 -BaseUrl http://localhost:8080/api/v1 -Days 21
+    .\scripts\seed-demo.ps1 -BaseUrl https://fisiovital-web-services.onrender.com/api/v1
 #>
 param(
     [string]$BaseUrl = 'http://localhost:8080/api/v1',
     [string]$Password = 'Demo2026*',
-    [int]$Days = 14
+    [int]$Days = 14,
+    [string[]]$FocusDates = @('2026-12-03', '2026-12-05')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -47,7 +54,9 @@ $patients = @(
     @{ key = 'carlos'; fullName = 'Carlos Mendoza'; email = 'carlos.mendoza@example.com'; phone = '954321098' },
     @{ key = 'ana'; fullName = 'Ana Torres'; email = 'ana.torres@example.com'; phone = '943210987' },
     @{ key = 'luis'; fullName = 'Luis Quispe'; email = 'luis.quispe@example.com'; phone = '932109876' },
-    @{ key = 'sofia'; fullName = 'Sofía Huamán'; email = 'sofia.huaman@example.com'; phone = '921098765' }
+    @{ key = 'sofia'; fullName = 'Sofía Huamán'; email = 'sofia.huaman@example.com'; phone = '921098765' },
+    # Sin planes a propósito: en la demo el asistente le crea el plan y le reserva la primera cita.
+    @{ key = 'valeria'; fullName = 'Valeria Ríos'; email = 'valeria.rios@example.com'; phone = '919876543' }
 )
 
 # book = citas a reservar; hour = hora preferida; cancel/reschedule = una cita de ejemplo con ese cambio.
@@ -67,7 +76,14 @@ $plans = @(
     @{ patient = 'luis'; physio = 'diego'; diagnosis = 'Recuperación tras reconstrucción de LCA'
        totalSessions = 12; frequencyPerWeek = 1; book = 2; hour = 16 },
     @{ patient = 'sofia'; physio = 'jorge'; diagnosis = 'Dorsalgia por mala postura'
-       totalSessions = 6; frequencyPerWeek = 1; book = 2; hour = 16 }
+       totalSessions = 6; frequencyPerWeek = 1; book = 2; hour = 16 },
+    # Citas en los días de la exposición (FocusDates): se reservan en esas fechas, lo más cerca de 'hours'.
+    @{ patient = 'carlos'; physio = 'diego'; diagnosis = 'Dolor de rodilla al correr'
+       totalSessions = 8; frequencyPerWeek = 2; onFocusDates = $true; hours = @(10, 11) },
+    @{ patient = 'ana'; physio = 'jorge'; diagnosis = 'Lumbalgia por trabajo de oficina'
+       totalSessions = 8; frequencyPerWeek = 2; onFocusDates = $true; hours = @(16, 11) },
+    @{ patient = 'sofia'; physio = 'mariana'; diagnosis = 'Inestabilidad de tobillo'
+       totalSessions = 8; frequencyPerWeek = 2; onFocusDates = $true; hours = @(9, 9) }
 )
 
 # --- Utilidades -------------------------------------------------------------------------------------------------
@@ -117,10 +133,14 @@ function Connect-Account {
     return $session.Data
 }
 
+$focus = @($FocusDates | ForEach-Object { [datetime]::ParseExact($_, 'yyyy-MM-dd', $null).Date } |
+    Where-Object { $_ -gt (Get-Date).Date })
+$lastDate = @((Get-Date).Date.AddDays($Days)) + $focus | Sort-Object | Select-Object -Last 1
+
 function Get-FreeSlots {
     param([long]$PhysioId, [string]$Token)
     $from = (Get-Date).ToString('yyyy-MM-dd')
-    $to = (Get-Date).AddDays($Days).ToString('yyyy-MM-dd')
+    $to = $lastDate.ToString('yyyy-MM-dd')
     $result = Invoke-Api GET "/physiotherapists/$PhysioId/slots?from=$from&to=$to" -Token $Token
     if (-not $result.Ok) { throw "No se pudieron leer los horarios: $($result.Message)" }
     return @($result.Data.slots | Where-Object { $_.status -eq 'FREE' -and [datetime]$_.startTime -gt (Get-Date).AddHours(2) })
@@ -148,15 +168,17 @@ foreach ($patient in $patients) { $patientSessions[$patient.key] = Connect-Accou
 
 # --- 2. Horarios publicados (US06) ------------------------------------------------------------------------------
 
-Write-Host "`nHorarios de los próximos $Days días (lunes a sábado)" -ForegroundColor Cyan
+$focusText = ($focus | ForEach-Object { $_.ToString('dd/MM') }) -join ', '
+Write-Host "`nHorarios de los próximos $Days días (lunes a sábado) y días de exposición: $focusText" -ForegroundColor Cyan
+$dates = @(1..$Days | ForEach-Object { (Get-Date).Date.AddDays($_) }) + $focus | Sort-Object -Unique
 foreach ($physio in $physiotherapists) {
     $published = 0
-    for ($day = 1; $day -le $Days; $day++) {
-        $date = (Get-Date).Date.AddDays($day)
-        if ($date.DayOfWeek -eq 'Sunday') { continue }
+    foreach ($date in $dates) {
+        $isFocus = $focus -contains $date
+        if ($date.DayOfWeek -eq 'Sunday' -and -not $isFocus) { continue }
         foreach ($shift in $physio.shifts) {
-            # Los sábados solo se atiende en la mañana.
-            if ($date.DayOfWeek -eq 'Saturday' -and [int]$shift.start.Substring(0, 2) -ge 13) { continue }
+            # Los sábados solo se atiende en la mañana, salvo en los días de la exposición.
+            if ($date.DayOfWeek -eq 'Saturday' -and -not $isFocus -and [int]$shift.start.Substring(0, 2) -ge 13) { continue }
             $result = Invoke-Api POST '/physiotherapists/me/slots' @{
                 date = $date.ToString('yyyy-MM-dd'); startTime = $shift.start; endTime = $shift.end
                 durationMinutes = $shift.duration
@@ -204,9 +226,36 @@ foreach ($plan in $plans) {
             $_.status -eq 'RESERVED' -and [datetime]$_.startTime -gt (Get-Date) }).Count
     }
     $remaining = $current.totalSessions - $current.bookedSessions
-    $toBook = [math]::Min($plan.book - $upcoming, $remaining)
-
     $booked = @()
+
+    if ($plan.onFocusDates) {
+        # Una cita por día de exposición, cerca de la hora indicada; si ya estaba reservada ese día, se salta.
+        $mineAppointments = @()
+        if ($existing) {
+            $history = Invoke-Api GET '/appointments/me?page=0&size=200' -Token $token
+            $mineAppointments = @($history.Data.appointments | Where-Object {
+                $_.physiotherapistId -eq $physioId -and $_.status -eq 'RESERVED' })
+        }
+        $slots = Get-FreeSlots $physioId $token
+        for ($i = 0; $i -lt $focus.Count; $i++) {
+            $date = $focus[$i]
+            if ($mineAppointments | Where-Object { ([datetime]$_.startTime).Date -eq $date }) { continue }
+            $hour = if ($i -lt $plan.hours.Count) { $plan.hours[$i] } else { $plan.hours[-1] }
+            $slot = $slots | Where-Object { ([datetime]$_.startTime).Date -eq $date } |
+                Sort-Object { [math]::Abs(([datetime]$_.startTime).Hour - $hour) } | Select-Object -First 1
+            if (-not $slot) { Write-Warning "Sin horarios libres el $($date.ToString('dd/MM')) para $patientName con $physioName"; continue }
+            $result = Invoke-Api POST "/treatment-plans/$($current.id)/sessions" @{ slotId = $slot.id } -Token $token
+            if ($result.Ok) { $booked += $result.Data; $slots = @($slots | Where-Object { $_.id -ne $slot.id }) }
+            else { Write-Warning "${patientName} $($date.ToString('dd/MM')): $($result.Message)" }
+        }
+        $origin = if ($existing) { 'plan existente' } else { 'plan nuevo' }
+        $when = ($booked | ForEach-Object { ([datetime]$_.startTime).ToString('ddd dd/MM HH:mm') }) -join ', '
+        Write-Host ("  {0,-16} -> {1,-14} {2}: {3} citas en días de expo ({4}) {5}" -f $patientName, $physioName,
+            $plan.diagnosis, $booked.Count, $origin, $when)
+        continue
+    }
+
+    $toBook = [math]::Min($plan.book - $upcoming, $remaining)
     if ($toBook -gt 0) {
         $slots = Get-FreeSlots $physioId $token
         $next = (Get-Date).AddDays(1)
@@ -229,12 +278,13 @@ foreach ($plan in $plans) {
     }
 
     $changes = ''
-    if ($booked.Count -gt 0 -and $plan.cancel) {
+    # Los ejemplos de cancelar y reprogramar solo se hacen al crear el plan, no en cada ejecucion.
+    if ($booked.Count -gt 0 -and $plan.cancel -and -not $existing) {
         $last = $booked[-1]
         $result = Invoke-Api PATCH "/sessions/$($last.id)/cancel" -Token $token
         if ($result.Ok) { $changes = ", canceló la del $(([datetime]$last.startTime).ToString('dd/MM HH:mm'))" }
     }
-    if ($booked.Count -gt 0 -and $plan.reschedule) {
+    if ($booked.Count -gt 0 -and $plan.reschedule -and -not $existing) {
         $last = $booked[-1]
         $newSlot = Get-FreeSlots $physioId $token |
             Where-Object { ([datetime]$_.startTime).Date -eq ([datetime]$last.startTime).Date.AddDays(1) } |

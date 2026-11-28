@@ -18,4 +18,7 @@ public interface TreatmentPlanRepository extends JpaRepository<TreatmentPlan, Lo
 
     /** ¿El fisioterapeuta trata o trato al paciente? Da acceso a su historia clinica. */
     boolean existsByPatientIdAndPhysiotherapistId(Long patientId, Long physiotherapistId);
+
+    /** Planes de los pacientes de un fisioterapeuta (asistente del fisioterapeuta). */
+    List<TreatmentPlan> findByPhysiotherapistIdOrderByCreatedAtDesc(Long physiotherapistId);
 }

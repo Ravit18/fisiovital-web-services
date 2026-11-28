@@ -41,6 +41,13 @@ public class ClinicalNoteService {
         return clinicalNoteMapper.toResponseList(noteRepository.findByPatientIdOrderByCreatedAtDescIdDesc(patient.getId()));
     }
 
+    /** El paciente lee su propia historia clinica (asistente): notas de todos sus fisioterapeutas. */
+    @Transactional(readOnly = true)
+    public List<ClinicalNoteResponseDTO> findMine() {
+        Patient patient = profileLookupService.currentPatient();
+        return clinicalNoteMapper.toResponseList(noteRepository.findByPatientIdOrderByCreatedAtDescIdDesc(patient.getId()));
+    }
+
     @Transactional
     public ClinicalNoteResponseDTO create(Long patientId, CreateClinicalNoteRequestDTO request) {
         Physiotherapist physio = profileLookupService.currentPhysiotherapist();

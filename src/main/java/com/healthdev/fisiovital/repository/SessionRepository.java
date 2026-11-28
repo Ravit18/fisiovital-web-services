@@ -45,4 +45,8 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     /** Sesiones reservadas del paciente que aun no ocurren (asistente, US20). */
     List<Session> findByPlanPatientIdAndStatusAndSlotStartTimeAfterOrderBySlotStartTimeAsc(
             Long patientId, SessionStatus status, LocalDateTime after);
+
+    /** Sesiones reservadas y futuras de un paciente con un fisioterapeuta (asistente del fisioterapeuta). */
+    List<Session> findByPlanPatientIdAndPlanPhysiotherapistIdAndStatusAndSlotStartTimeAfterOrderBySlotStartTimeAsc(
+            Long patientId, Long physiotherapistId, SessionStatus status, LocalDateTime after);
 }
