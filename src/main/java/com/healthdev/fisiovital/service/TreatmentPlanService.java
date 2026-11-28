@@ -89,7 +89,36 @@ public class TreatmentPlanService {
     /** US10 - Reservar una sesion del plan en un bloque libre del mismo fisioterapeuta. */
     @Transactional
     public SessionResponseDTO bookSession(Long planId, BookSessionRequestDTO request) {
-        TreatmentPlan plan = getOwnedPlan(planId);
+        return book(getOwnedPlan(planId), request.slotId());
+    }
+
+    /** El fisioterapeuta reserva por su paciente (asistente): mismas reglas, pero el plan debe ser suyo. */
+    @Transactional
+    public SessionResponseDTO bookSessionForPatient(Long planId, Long slotId) {
+        return book(getPhysiotherapistPlan(planId), slotId);
+    }
+
+    /** Planes de los pacientes del fisioterapeuta autenticado, del mas reciente al mas antiguo. */
+    @Transactional
+    public List<TreatmentPlanResponseDTO> plansOfMyPatients() {
+        Long physioId = profileLookupService.currentPhysiotherapist().getId();
+        return planRepository.findByPhysiotherapistIdOrderByCreatedAtDesc(physioId).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    private TreatmentPlan getPhysiotherapistPlan(Long planId) {
+        Long physioId = profileLookupService.currentPhysiotherapist().getId();
+        TreatmentPlan plan = planRepository.findById(planId)
+                .orElseThrow(() -> BusinessException.notFound("plan.not.found"));
+        if (!plan.getPhysiotherapist().getId().equals(physioId)) {
+            throw BusinessException.forbidden("auth.forbidden");
+        }
+        return plan;
+    }
+
+    private SessionResponseDTO book(TreatmentPlan plan, Long slotId) {
+        Long planId = plan.getId();
         if (!plan.isActive()) {
             throw BusinessException.unprocessable("plan.not.active");
         }
@@ -98,7 +127,7 @@ public class TreatmentPlanService {
             throw BusinessException.unprocessable("plan.completed");
         }
 
-        AvailabilitySlot slot = availabilityService.getSlot(request.slotId());
+        AvailabilitySlot slot = availabilityService.getSlot(slotId);
         if (!slot.belongsTo(plan.getPhysiotherapist().getId())) {
             throw BusinessException.badRequest("slot.other.physio");
         }

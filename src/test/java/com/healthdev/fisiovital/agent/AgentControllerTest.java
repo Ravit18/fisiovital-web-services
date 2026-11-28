@@ -31,6 +31,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -309,6 +311,176 @@ class AgentControllerTest extends IntegrationTestBase {
         assertThat(booked.success()).isFalse();
         assertThat(booked.message()).isEqualTo("Solo un paciente puede reservar o reprogramar sesiones");
         assertThat(moved.success()).isFalse();
+    }
+
+    // ---------- Historial de chats ----------
+
+    @Test
+    void history_listsChatsNewestFirstWithTitleAndFullMessages() throws Exception {
+        String token = newPatientToken();
+        modelReplies("Puedes cancelar hasta 24 horas antes.");
+        long first = json(ask(token, null, "¿Cuál es la política de cancelación?").andReturn())
+                .get("conversationId").asLong();
+        modelReplies("Te recomiendo un especialista en columna.");
+        long second = json(ask(token, null, "Me duele la espalda baja al sentarme").andReturn())
+                .get("conversationId").asLong();
+
+        mockMvc.perform(authed(get("/api/v1/assistant/conversations"), token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(second))
+                .andExpect(jsonPath("$[0].title").value("Me duele la espalda baja al sentarme"))
+                .andExpect(jsonPath("$[1].id").value(first));
+
+        mockMvc.perform(authed(get("/api/v1/assistant/conversations/" + first + "/messages"), token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].sender").value("USER"))
+                .andExpect(jsonPath("$[0].content").value("¿Cuál es la política de cancelación?"))
+                .andExpect(jsonPath("$[1].sender").value("ASSISTANT"))
+                .andExpect(jsonPath("$[1].content").value("Puedes cancelar hasta 24 horas antes."));
+    }
+
+    @Test
+    void history_resumingAnOldChatKeepsItsConversation() throws Exception {
+        String token = newPatientToken();
+        modelReplies("Hola, ¿en qué te ayudo?");
+        long id = json(ask(token, null, "Hola").andReturn()).get("conversationId").asLong();
+        modelReplies("Claro.");
+
+        ask(token, id, "Sigo con mi consulta")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.conversationId").value(id));
+        mockMvc.perform(authed(get("/api/v1/assistant/conversations/" + id + "/messages"), token))
+                .andExpect(jsonPath("$.length()").value(4));
+    }
+
+    @Test
+    void history_otherUsersChatIsHiddenAndCannotBeDeleted() throws Exception {
+        modelReplies("Hola");
+        long id = json(ask(newPatientToken(), null, "Hola").andReturn()).get("conversationId").asLong();
+        String intruder = newPatientToken();
+
+        mockMvc.perform(authed(get("/api/v1/assistant/conversations"), intruder))
+                .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(authed(get("/api/v1/assistant/conversations/" + id + "/messages"), intruder))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(authed(delete("/api/v1/assistant/conversations/" + id), intruder))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void history_deleteRemovesTheChat() throws Exception {
+        String token = newPatientToken();
+        modelReplies("Hola");
+        long id = json(ask(token, null, "Hola").andReturn()).get("conversationId").asLong();
+
+        mockMvc.perform(authed(delete("/api/v1/assistant/conversations/" + id), token))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(authed(get("/api/v1/assistant/conversations"), token))
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void history_longFirstMessageIsCutIntoATitle() {
+        String title = com.healthdev.fisiovital.model.Conversation.titleOf(
+                "Quiero saber si puedo reprogramar mi sesión del jueves porque tengo un examen en la universidad");
+        assertThat(title).endsWith("…").hasSizeLessThanOrEqualTo(61).doesNotContain("universidad");
+    }
+
+    // ---------- Crear plan desde el chat y opciones para tocar ----------
+
+    @Test
+    void createPlanTool_createsTheActivePlanAndRejectsADuplicate() throws Exception {
+        JsonNode physio = newPhysio("DEPORTIVA");
+        JsonNode patient = signUpPatient("Paciente " + uniq(), "paciente." + uniq() + "@correo.com");
+        actAs(patient);
+        long physioId = physio.get("profileId").asLong();
+
+        FisioVitalAgentTools.PlanResult created = tools.createTreatmentPlan(physioId, "Dolor de rodilla al correr", 8, 2);
+        FisioVitalAgentTools.PlanResult duplicate = tools.createTreatmentPlan(physioId, "Otra molestia", 4, 1);
+        FisioVitalAgentTools.PlanResult invalid = tools.createTreatmentPlan(physioId, "Rodilla", 40, 2);
+
+        assertThat(created.success()).isTrue();
+        assertThat(created.plan().totalSessions()).isEqualTo(8);
+        assertThat(tools.myActivePlans()).hasSize(1);
+        assertThat(duplicate.success()).isFalse();
+        assertThat(duplicate.message()).isNotBlank();
+        assertThat(invalid.success()).isFalse();
+        assertThat(invalid.message()).contains("entre 1 y 30 sesiones");
+    }
+
+    @Test
+    void choices_areReturnedAndKeptInTheHistory() throws Exception {
+        String token = newPatientToken();
+        when(chatModel.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage(
+                "{\"reply\": \"Estos son los horarios libres del jueves.\", "
+                        + "\"choices\": [\"jue 27/11 · 10:00\", \"jue 27/11 · 11:00\", \" \"]}")))));
+
+        long id = json(ask(token, null, "Quiero una sesión el jueves").andExpect(status().isOk())
+                .andExpect(jsonPath("$.reply").value("Estos son los horarios libres del jueves."))
+                .andExpect(jsonPath("$.choices.length()").value(2))
+                .andExpect(jsonPath("$.choices[0]").value("jue 27/11 · 10:00"))
+                .andReturn()).get("conversationId").asLong();
+
+        mockMvc.perform(authed(get("/api/v1/assistant/conversations/" + id + "/messages"), token))
+                .andExpect(jsonPath("$[1].content").value("Estos son los horarios libres del jueves."))
+                .andExpect(jsonPath("$[1].choices[1]").value("jue 27/11 · 11:00"))
+                .andExpect(jsonPath("$[0].choices.length()").value(0));
+    }
+
+    @Test
+    void choices_safetyRepliesNeverOfferOptions() throws Exception {
+        ask(newPatientToken(), null, "¿Qué medicamento debo tomar?")
+                .andExpect(jsonPath("$.source").value("SAFETY"))
+                .andExpect(jsonPath("$.choices.length()").value(0));
+    }
+
+    // ---------- Asistente por voz: abre pantallas ----------
+
+    @Test
+    void voice_actionOpensTheProfileWithTheDayAndTheScreenReachesThePrompt() throws Exception {
+        when(chatModel.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage(
+                "{\"reply\": \"Te deje en pantalla los horarios del jueves de Jorge.\", \"choices\": [], "
+                        + "\"action\": {\"page\": \"physiotherapist_profile\", \"physiotherapistId\": 7, "
+                        + "\"date\": \"2026-12-03\"}}")))));
+
+        mockMvc.perform(authed(post("/api/v1/assistant/messages"), newPatientToken())
+                        .content("{\"message\": \"ensename sus cupos del jueves\", "
+                                + "\"screen\": \"/patient/physiotherapists/7\", \"voice\": true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.action.page").value("PHYSIOTHERAPIST_PROFILE"))
+                .andExpect(jsonPath("$.action.physiotherapistId").value(7))
+                .andExpect(jsonPath("$.action.date").value("2026-12-03"));
+
+        assertThat(lastPrompt().getInstructions()).anyMatch(m -> m.getMessageType() == MessageType.SYSTEM
+                && m.getText().contains("/patient/physiotherapists/7") && m.getText().contains("# CANAL DE VOZ"));
+    }
+
+    @Test
+    void voice_unknownPagesAreDropped() throws Exception {
+        when(chatModel.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage(
+                "{\"reply\": \"Listo.\", \"action\": {\"page\": \"ADMIN_PANEL\"}}")))));
+
+        ask(newPatientToken(), null, "abre el panel de administrador")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.action").doesNotExist());
+    }
+
+    @Test
+    void voice_toolsFindAPhysiotherapistByNameAndListTheirFreeSlots() throws Exception {
+        JsonNode physio = signUpPhysio("Jorge Núñez " + uniq(), "jorge." + uniq() + "@correo.com", uniq(),
+                "COLUMNA_POSTURA", 9);
+        publishSlots(physio.get("token").asText(), todayPlusDays(3), "09:00", "11:00", 60);
+        actAsPatient();
+
+        List<FisioVitalAgentTools.PhysioOption> found = tools.findPhysiotherapistsByName("nunez");
+        FisioVitalAgentTools.SlotsResult slots = tools.physiotherapistFreeSlots(physio.get("profileId").asLong(),
+                todayPlusDays(3));
+
+        assertThat(found).anyMatch(p -> p.id().equals(physio.get("profileId").asLong()));
+        assertThat(slots.slots()).hasSize(2);
+        assertThat(slots.requestedDateHasSlots()).isTrue();
     }
 
     // ---------- Helpers ----------

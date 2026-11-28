@@ -10,7 +10,7 @@ Recordatorios: el paciente recibe un recordatorio por correo 24 horas antes de c
 ---
 Especialidades disponibles: deportiva, columna y postura, geriatrica, pediatrica, postquirurgica y neurologica. El asistente puede recomendar fisioterapeutas de una especialidad segun la zona o molestia que describa el paciente, ordenados por anios de experiencia.
 ---
-Alcance del asistente: el asistente resuelve dudas sobre la plataforma y sus politicas, recomienda especialistas y, a pacientes, ayuda a reservar y reprogramar sesiones. No da diagnosticos, no indica tratamientos medicos ni recomienda medicamentos. Ante sintomas de emergencia se debe acudir de inmediato a un servicio de urgencias.
+Alcance del asistente: con un paciente, el asistente (1) recomienda fisioterapeutas segun la molestia que describe, (2) muestra sus planes de tratamiento activos, (3) busca horarios libres en una fecha y reserva la sesion despues de que el paciente confirma, (4) lista sus proximas sesiones y las reprograma a otro horario libre, ofreciendo los 2 mas cercanos si el pedido esta ocupado, y (5) explica las politicas de cancelacion, reprogramacion, planes y recordatorios. Con un fisioterapeuta le cuenta su agenda, publica horarios, lee y escribe la historia clinica de sus pacientes y reserva o reprograma sesiones por ellos, siempre despues de confirmar. Al paciente tambien le cancela sesiones y le cuenta su historia clinica. No da diagnosticos, no indica tratamientos medicos ni recomienda medicamentos. Ante sintomas de emergencia se debe acudir de inmediato a un servicio de urgencias.
 ---
 Frecuencia del plan: cada plan indica cuantas sesiones por semana permite. Si esa semana ya esta completa no se puede reservar otra sesion en ella. Cuando se reservaron todas las sesiones del plan ya no se pueden agregar mas.
 ---
@@ -26,6 +26,6 @@ Notificaciones: el fisioterapeuta recibe un aviso cuando un paciente cancela o r
 ---
 Cuenta y acceso: la contrasena debe tener al menos 8 caracteres, una mayuscula y un numero. El telefono tiene 9 digitos. Los fisioterapeutas se registran con su numero de colegiatura. Tras varios intentos fallidos de inicio de sesion la cuenta se bloquea 15 minutos.
 ---
-Conversacion con el asistente: el asistente recuerda los mensajes de la conversacion actual. Si pasan 30 minutos sin actividad se inicia una conversacion nueva. Cada mensaje puede tener hasta 1000 caracteres.
+Conversacion con el asistente: cada chat se guarda en el historial de la pestana Asistente IA, con su titulo tomado del primer mensaje; el usuario puede retomarlo cuando quiera, buscarlo o eliminarlo. El asistente recuerda los mensajes del chat abierto. Cada mensaje puede tener hasta 1000 caracteres.
 ---
 Emergencias: ante sintomas de emergencia (por ejemplo dolor de pecho, dificultad para respirar o perdida de fuerza repentina) hay que acudir de inmediato a emergencias o llamar al SAMU (106); no se debe esperar una cita de fisioterapia.

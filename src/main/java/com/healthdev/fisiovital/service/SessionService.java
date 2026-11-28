@@ -44,11 +44,31 @@ public class SessionService {
     /** US11 - Reprogramar una sesion a otro bloque libre del mismo fisioterapeuta. */
     @Transactional
     public SessionResponseDTO reschedule(Long sessionId, RescheduleSessionRequestDTO request) {
-        Session session = getOwnedSession(sessionId);
+        return moveSession(getOwnedSession(sessionId), request.newSlotId(), false);
+    }
+
+    /** El fisioterapeuta mueve la sesion de su paciente (asistente); al paciente le llega el aviso. */
+    @Transactional
+    public SessionResponseDTO rescheduleForPhysiotherapist(Long sessionId, Long newSlotId) {
+        return moveSession(getPhysiotherapistSession(sessionId), newSlotId, true);
+    }
+
+    /** Sesiones reservadas y futuras de un paciente con el fisioterapeuta autenticado. */
+    @Transactional(readOnly = true)
+    public List<SessionResponseDTO> upcomingOfPatientForCurrentPhysiotherapist(Long patientId) {
+        Physiotherapist physio = profileLookupService.currentPhysiotherapist();
+        return sessionRepository
+                .findByPlanPatientIdAndPlanPhysiotherapistIdAndStatusAndSlotStartTimeAfterOrderBySlotStartTimeAsc(
+                        patientId, physio.getId(), SessionStatus.RESERVED, LocalDateTime.now()).stream()
+                .map(sessionMapper::toResponse)
+                .toList();
+    }
+
+    private SessionResponseDTO moveSession(Session session, Long newSlotId, boolean byPhysiotherapist) {
         LocalDateTime now = LocalDateTime.now();
         boolean lateChange = session.isLateChange(now);
 
-        AvailabilitySlot newSlot = availabilityService.getSlot(request.newSlotId());
+        AvailabilitySlot newSlot = availabilityService.getSlot(newSlotId);
         if (!newSlot.belongsTo(session.getPlan().getPhysiotherapist().getId())
                 || !newSlot.isFree() || !newSlot.getStartTime().isAfter(now)) {
             throw BusinessException.conflict("slot.not.available");
@@ -58,10 +78,17 @@ public class SessionService {
         session.reschedule(newSlot, now);
         sessionRepository.saveAndFlush(session);
 
-        notificationService.notify(session.getPlan().getPhysiotherapist().getUser(), session,
-                NotificationType.SESSION_RESCHEDULED, "notification.session.rescheduled",
-                session.getPlan().getPatient().getFullName(), session.getSessionNumber(),
-                newSlot.getStartTime().format(FORMAT));
+        if (byPhysiotherapist) {
+            notificationService.notify(session.getPlan().getPatient().getUser(), session,
+                    NotificationType.SESSION_RESCHEDULED, "notification.session.rescheduled.by.physio",
+                    session.getPlan().getPhysiotherapist().getFullName(), session.getSessionNumber(),
+                    newSlot.getStartTime().format(FORMAT));
+        } else {
+            notificationService.notify(session.getPlan().getPhysiotherapist().getUser(), session,
+                    NotificationType.SESSION_RESCHEDULED, "notification.session.rescheduled",
+                    session.getPlan().getPatient().getFullName(), session.getSessionNumber(),
+                    newSlot.getStartTime().format(FORMAT));
+        }
         return sessionMapper.toResponse(session, lateChange);
     }
 
@@ -114,6 +141,16 @@ public class SessionService {
         boolean cancelled = sessionRepository.findFirstBySlotIdAndStatusInOrderByIdDesc(
                 slot.getId(), SessionStatus.CANCELLED_STATES).isPresent();
         return sessionMapper.toFreeAgendaItem(slot, cancelled ? "FREE_CANCELLED" : "FREE");
+    }
+
+    private Session getPhysiotherapistSession(Long sessionId) {
+        Physiotherapist physio = profileLookupService.currentPhysiotherapist();
+        Session session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> BusinessException.notFound("session.not.found"));
+        if (!session.getPlan().getPhysiotherapist().getId().equals(physio.getId())) {
+            throw BusinessException.forbidden("auth.forbidden");
+        }
+        return session;
     }
 
     private Session getOwnedSession(Long sessionId) {
