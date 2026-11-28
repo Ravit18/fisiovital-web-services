@@ -16,7 +16,7 @@ import java.util.Map;
 /**
  * Instrucciones de sistema del asistente (US17-US20) construidas con PromptTemplate de Spring AI.
  * La plantilla base vive en resources/prompts/assistant-system.st y recibe las variables
- * {today}, {language} y {roleRules}; las reglas de cada rol estan en rules-*.st.
+ * {today}, {userName}, {language} y {roleRules}; las reglas de cada rol estan en rules-*.st.
  */
 final class AgentPrompts {
 
@@ -32,9 +32,17 @@ final class AgentPrompts {
     }
 
     static String system(Role role, LocalDateTime now, Locale locale) {
+        return system(role, null, now, locale);
+    }
+
+    /** userName: nombre completo del usuario (o null), para que el asistente lo trate por su nombre. */
+    static String system(Role role, String userName, LocalDateTime now, Locale locale) {
         String language = "en".equals(locale.getLanguage()) ? "ingles (en-US)" : "espanol latinoamericano (es-419)";
         return SYSTEM.render(Map.of(
                 "today", now.format(TODAY),
+                "userName", userName == null || userName.isBlank()
+                        ? (role == Role.PATIENT ? "un paciente" : "un fisioterapeuta")
+                        : userName.strip() + (role == Role.PATIENT ? " (paciente)" : " (fisioterapeuta)"),
                 "language", language,
                 "roleRules", role == Role.PATIENT ? PATIENT_RULES : PHYSIOTHERAPIST_RULES));
     }

@@ -1,12 +1,14 @@
 package com.healthdev.fisiovital.agent.tools;
 
 import com.healthdev.fisiovital.service.AvailabilityService;
+import com.healthdev.fisiovital.service.ClinicalNoteService;
 import com.healthdev.fisiovital.service.BookingRules;
 import com.healthdev.fisiovital.service.PhysiotherapistSearchService;
 import com.healthdev.fisiovital.service.SessionService;
 import com.healthdev.fisiovital.service.TreatmentPlanService;
 
 import com.healthdev.fisiovital.dto.request.BookSessionRequestDTO;
+import com.healthdev.fisiovital.dto.request.CreateTreatmentPlanRequestDTO;
 import com.healthdev.fisiovital.dto.request.RescheduleSessionRequestDTO;
 import com.healthdev.fisiovital.dto.response.SessionResponseDTO;
 import com.healthdev.fisiovital.dto.response.SlotResponseDTO;
@@ -51,6 +53,7 @@ public class FisioVitalAgentTools {
     private final TreatmentPlanService treatmentPlanService;
     private final AvailabilityService availabilityService;
     private final SessionService sessionService;
+    private final ClinicalNoteService clinicalNoteService;
     private final BookingRules bookingRules;
     private final MessageSource messageSource;
     private final CurrentUserProvider currentUser;
@@ -80,6 +83,12 @@ public class FisioVitalAgentTools {
     public record ActionResult(boolean success, String message, SessionOption session) {
     }
 
+    public record PlanResult(boolean success, String message, PlanOption plan) {
+    }
+
+    public record NoteOption(String physiotherapistName, Integer sessionNumber, String sessionDate, String text) {
+    }
+
     @Tool(description = "US18. Busca hasta 3 fisioterapeutas activos de una especialidad, ordenados por anios "
             + "de experiencia. Especialidades validas: DEPORTIVA (lesiones deportivas), COLUMNA_POSTURA (espalda, "
             + "cuello, lumbalgia, postura), GERIATRICA (adultos mayores), PEDIATRICA (ninos), POSTQUIRURGICA "
@@ -97,6 +106,45 @@ public class FisioVitalAgentTools {
                 .map(p -> new PhysioOption(p.id(), p.fullName(), p.specialty(), p.yearsOfExperience(),
                         p.hasAvailability()))
                 .toList();
+    }
+
+    @Tool(description = "Busca fisioterapeutas activos por nombre o apellido (por ejemplo \"Jorge\" o \"Paredes\"). "
+            + "Usala cuando el usuario nombre a un fisioterapeuta, para obtener su id.")
+    public List<PhysioOption> findPhysiotherapistsByName(
+            @ToolParam(description = "Nombre, apellido o parte del nombre") String name) {
+        String wanted = normalize(name);
+        if (wanted.isBlank()) {
+            return List.of();
+        }
+        return physiotherapistSearchService.search(null).items().stream()
+                .filter(p -> normalize(p.fullName()).contains(wanted))
+                .limit(5)
+                .map(p -> new PhysioOption(p.id(), p.fullName(), p.specialty(), p.yearsOfExperience(),
+                        p.hasAvailability()))
+                .toList();
+    }
+
+    @Tool(description = "Horarios libres de un fisioterapeuta en un dia, sin necesidad de plan (solo para mostrarlos "
+            + "o decirlos). Para reservar usa freeSlotsOnDate con el plan.")
+    public SlotsResult physiotherapistFreeSlots(
+            @ToolParam(description = "Id del fisioterapeuta") Long physiotherapistId,
+            @ToolParam(description = "Fecha en formato AAAA-MM-DD") String date) {
+        try {
+            LocalDate day = LocalDate.parse(date);
+            List<SlotResponseDTO> sameDay = availabilityService.findFreeSlots(physiotherapistId, day, day).slots()
+                    .stream().filter(s -> s.startTime().toLocalDate().equals(day)).toList();
+            return new SlotsResult(date, !sameDay.isEmpty(), toOptions(sameDay),
+                    sameDay.isEmpty() ? msg("slots.none") : null);
+        } catch (BusinessException e) {
+            return new SlotsResult(date, false, List.of(), msg(e));
+        } catch (RuntimeException e) {
+            return new SlotsResult(date, false, List.of(), msg("slots.none"));
+        }
+    }
+
+    private static String normalize(String text) {
+        return text == null ? "" : java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT).strip();
     }
 
     @Tool(description = "US19. Lista los planes de tratamiento ACTIVOS del paciente autenticado. Necesitas el "
@@ -161,6 +209,33 @@ public class FisioVitalAgentTools {
         }
     }
 
+    @Tool(description = "US19. Crea un plan de tratamiento del paciente con un fisioterapeuta (el mismo paso "
+            + "que hace en el perfil del especialista antes de reservar). Llamala SOLO despues de mostrar un resumen "
+            + "del plan y de que el paciente responda que confirma; elegir un dato no es confirmar. Solo puede haber un plan "
+            + "activo por fisioterapeuta; si ya existe, devuelve un message.")
+    public PlanResult createTreatmentPlan(
+            @ToolParam(description = "Id del fisioterapeuta devuelto por searchPhysiotherapists") Long physiotherapistId,
+            @ToolParam(description = "Motivo o molestia con las palabras del paciente, maximo 255 caracteres") String diagnosis,
+            @ToolParam(description = "Numero total de sesiones, de 1 a 30") Integer totalSessions,
+            @ToolParam(description = "Sesiones por semana, de 1 a 7") Integer frequencyPerWeek) {
+        try {
+            if (!isPatient()) {
+                return new PlanResult(false, msg("assistant.patient.only"), null);
+            }
+            if (diagnosis == null || diagnosis.isBlank() || totalSessions == null || totalSessions < 1
+                    || totalSessions > 30 || frequencyPerWeek == null || frequencyPerWeek < 1 || frequencyPerWeek > 7) {
+                return new PlanResult(false, msg("assistant.plan.invalid"), null);
+            }
+            String reason = diagnosis.strip();
+            TreatmentPlanResponseDTO plan = treatmentPlanService.create(new CreateTreatmentPlanRequestDTO(
+                    physiotherapistId, reason.length() > 255 ? reason.substring(0, 255) : reason,
+                    totalSessions, frequencyPerWeek));
+            return new PlanResult(true, null, toPlanOption(plan));
+        } catch (BusinessException e) {
+            return new PlanResult(false, msg(e), null);
+        }
+    }
+
     @Tool(description = "US19. Reserva una sesion del plan en un bloque libre. Llamala SOLO despues de que el "
             + "paciente confirme explicitamente el horario.")
     public ActionResult bookSession(@ToolParam(description = "Id del plan activo") Long planId,
@@ -196,6 +271,35 @@ public class FisioVitalAgentTools {
         } catch (BusinessException e) {
             return new ActionResult(false, msg(e), null);
         }
+    }
+
+    @Tool(description = "US12. Cancela una sesion reservada del paciente. Llamala SOLO despues de mostrarle la "
+            + "sesion (dia y hora) y de que confirme. Con menos de 24 horas queda como cancelacion tardia.")
+    public ActionResult cancelSession(@ToolParam(description = "Id de la sesion a cancelar (de myUpcomingSessions)")
+                                      Long sessionId) {
+        try {
+            if (!isPatient()) {
+                return new ActionResult(false, msg("assistant.patient.only"), null);
+            }
+            SessionResponseDTO cancelled = sessionService.cancel(sessionId);
+            return new ActionResult(true, cancelled.lateChange() ? msg("assistant.cancel.late") : null,
+                    toSessionOption(cancelled));
+        } catch (BusinessException e) {
+            return new ActionResult(false, msg(e), null);
+        }
+    }
+
+    @Tool(description = "Historia clinica del paciente autenticado: notas de evolucion de sus sesiones y notas "
+            + "generales que escribieron sus fisioterapeutas, de la mas reciente a la mas antigua.")
+    public List<NoteOption> myClinicalHistory() {
+        if (!isPatient()) {
+            return List.of();
+        }
+        return clinicalNoteService.findMine().stream()
+                .limit(20)
+                .map(n -> new NoteOption(n.physiotherapistName(), n.sessionNumber(),
+                        n.sessionStartTime() == null ? null : label(n.sessionStartTime()), n.text()))
+                .toList();
     }
 
     /**

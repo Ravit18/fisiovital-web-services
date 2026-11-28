@@ -24,12 +24,34 @@ class AgentPromptsTest {
     }
 
     @Test
-    void physiotherapistPromptUsesEnglishAndOmitsBookingRules() {
+    void physiotherapistPromptUsesEnglishAndHasItsOwnTools() {
         String prompt = AgentPrompts.system(Role.PHYSIOTHERAPIST, NOW, Locale.US);
 
         assertThat(prompt)
                 .contains("ingles (en-US)")
-                .contains("no reservas ni reprogramas")
-                .doesNotContain("bookSession");
+                .contains("myAgenda", "publishAvailability", "writeClinicalNote", "bookSessionForPatient")
+                .doesNotContain("createTreatmentPlan", "cancelSession");
+    }
+
+    @Test
+    void promptSetsAHumanToneAndUsesTheUsersName() {
+        String prompt = AgentPrompts.system(Role.PATIENT, "Carlos Rojas", NOW, Locale.forLanguageTag("es-419"));
+
+        assertThat(prompt)
+                .contains("Estas conversando con Carlos Rojas (paciente)", "# TONO", "Tutea", "Aqui tienes algunas opciones");
+    }
+
+    @Test
+    void eachRoleGetsASpecificCapabilityListInsteadOfAGenericAnswer() {
+        String patient = AgentPrompts.system(Role.PATIENT, NOW, Locale.forLanguageTag("es-419"));
+        String physio = AgentPrompts.system(Role.PHYSIOTHERAPIST, NOW, Locale.forLanguageTag("es-419"));
+
+        assertThat(patient)
+                .contains("# QUE PUEDES HACER", "NO respondas en general", "reservarle la sesion",
+                        "los 2 libres mas cercanos", "empieza ese flujo de inmediato", "conversando con un paciente",
+                        "createTreatmentPlan", "# FLUJO DE PLAN", "# OPCIONES PARA TOCAR");
+        assertThat(physio)
+                .contains("# QUE PUEDES HACER", "que especialidad le corresponde", "Publicar horarios")
+                .doesNotContain("reservarle la sesion");
     }
 }

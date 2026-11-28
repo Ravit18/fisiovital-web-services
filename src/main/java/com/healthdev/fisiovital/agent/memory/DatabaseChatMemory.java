@@ -49,18 +49,35 @@ public class DatabaseChatMemory implements ChatMemory {
                 default -> null;
             };
             if (sender != null && message.getText() != null) {
-                String text = sender == MessageSender.ASSISTANT ? plainReply(message.getText()) : message.getText();
+                String text = sender == MessageSender.ASSISTANT ? storedReply(message.getText()) : message.getText();
                 chatMessageRepository.save(conversation.addMessage(sender, text, LocalDateTime.now()));
             }
         }
         conversationRepository.save(conversation);
     }
 
-    /** El modelo responde con salida estructurada ({"reply": "..."}); en el historial se guarda solo el texto. */
-    private static String plainReply(String text) {
+    /**
+     * El modelo responde con salida estructurada ({"reply": "...", "choices": [...]}); en el historial se guarda
+     * el texto y, si ofrecio opciones, una linea final "[opciones: a | b]" para que el modelo recuerde que
+     * ofrecio y el historial pueda volver a mostrarlas.
+     */
+    private static String storedReply(String text) {
         try {
-            JsonNode reply = MAPPER.readTree(text).get("reply");
-            return reply != null && reply.isTextual() ? reply.asText() : text;
+            JsonNode root = MAPPER.readTree(text);
+            JsonNode reply = root.get("reply");
+            if (reply == null || !reply.isTextual()) {
+                return text;
+            }
+            List<String> choices = new ArrayList<>();
+            JsonNode options = root.get("choices");
+            if (options != null && options.isArray()) {
+                options.forEach(o -> {
+                    if (o.isTextual() && !o.asText().isBlank()) {
+                        choices.add(o.asText().strip().replace("|", "/"));
+                    }
+                });
+            }
+            return choices.isEmpty() ? reply.asText() : reply.asText() + ChoicesLine.format(choices);
         } catch (JsonProcessingException e) {
             return text;
         }
